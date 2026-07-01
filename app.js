@@ -274,7 +274,7 @@ function loadLocal() {
 async function ghGetRemote() {
   const url = `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${encodeURIComponent(GH.path)}?ref=${GH.branch}`;
   const r = await fetch(url, { headers: ghHeaders(), cache: "no-store" });
-  if (!r.ok) throw new Error("read " + r.status);
+  if (!r.ok) { let d = ""; try { d = (await r.json()).message || ""; } catch (_) {} throw new Error("read " + r.status + (d ? " — " + d : "")); }
   const j = await r.json();
   LOG_SHA = j.sha;
   const text = b64decode(j.content);
@@ -292,7 +292,7 @@ async function ghPutRemote(obj, message) {
     obj = mergeLogs(remote, obj); LIBRARY = obj;
     r = await send(LOG_SHA || undefined);
   }
-  if (!r.ok) throw new Error("write " + r.status);
+  if (!r.ok) { let d = ""; try { d = (await r.json()).message || ""; } catch (_) {} throw new Error("write " + r.status + (d ? " — " + d : "")); }
   const j = await r.json();
   LOG_SHA = j.content && j.content.sha;
 }
