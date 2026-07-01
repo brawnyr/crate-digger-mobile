@@ -10,7 +10,7 @@
 // ===========================================================================
 
 // ---- config -------------------------------------------------------------
-const GH = { owner: "brawnyr", repo: "crate-digger-mobile", branch: "main", path: "library.json" };
+const GH = { owner: "brawnyr", repo: "crate-digger", branch: "main", path: "library.json" };
 const LS = { token: "cd_gh_token", log: "cd_log_cache", sha: "cd_log_sha", pending: "cd_pending" };
 
 const DEFAULT_SOURCE_KEY = "lp_soul_blues";
@@ -246,6 +246,10 @@ async function pickRandom(query, pick, tries, exclude) {
 // ---- crate log — stored in a GitHub repo (the sync layer) ---------------
 let LIBRARY = {};
 let LOG_SHA = null;
+let logDirty = false;        // unpushed local changes waiting to auto-commit
+let flushing = false;        // a push is currently in flight
+let flushTimer = null;       // scheduled retry timer
+let pendingMsg = "sync crate log";
 
 function token() { return (localStorage.getItem(LS.token) || "").trim(); }
 function b64encode(str) { return btoa(unescape(encodeURIComponent(str))); }
@@ -303,17 +307,36 @@ async function loadLog() {
       const merged = mergeLogs(remote, LIBRARY);
       const localHadExtra = JSON.stringify(merged) !== JSON.stringify(remote);
       LIBRARY = merged; saveLocal();
-      if (localHadExtra && token()) { try { await ghPutRemote(LIBRARY, "sync offline changes"); } catch (_) {} }
+      if (localHadExtra) { logDirty = true; pendingMsg = "sync offline changes"; await flushLog(); }
     }
   } catch (_) { /* offline — run on the local cache */ }
   updateSyncState();
 }
-// Persist a keep/toss: local first (instant), then commit to GitHub if we can.
+// Any change marks the log dirty and auto-commits it, retrying until it sticks —
+// so every keep/toss lands on GitHub with no manual step.
 async function persistLog(message) {
+  pendingMsg = message || pendingMsg;
+  logDirty = true;
   saveLocal();
+  await flushLog();
+}
+async function flushLog() {
   if (!token()) { updateSyncState(); return; }
-  try { await ghPutRemote(LIBRARY, message); updateSyncState(true); }
-  catch (e) { updateSyncState(false, e.message); }
+  if (!logDirty) { updateSyncState(true); return; }
+  if (flushing) return;
+  flushing = true;
+  updateSyncState();
+  try {
+    await ghPutRemote(LIBRARY, pendingMsg);
+    logDirty = false;
+    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+    updateSyncState(true);
+  } catch (e) {
+    updateSyncState(false, e.message);
+    if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flushLog(); }, 12000);
+  } finally {
+    flushing = false;
+  }
 }
 
 function libEntryFrom(rec, sourceKey) {
@@ -604,7 +627,8 @@ document.querySelectorAll(".lib-tab").forEach((t) => {
 function updateSyncState(ok, err) {
   let txt;
   if (!token()) txt = "local only · tap ⚙ to sync";
-  else if (ok === false) txt = "⚠ token error (" + (err || "check token") + ")";
+  else if (ok === false) txt = "⚠ retrying sync… (" + (err || "offline") + ")";
+  else if (logDirty || flushing) txt = "⏳ saving…";
   else txt = "✓ synced to GitHub";
   els.syncState.textContent = txt;
 }
@@ -628,6 +652,7 @@ els.tokenSave.addEventListener("click", async () => {
     const remote = await ghGetRemote();
     LIBRARY = mergeLogs(remote, LIBRARY); saveLocal();
     await ghPutRemote(LIBRARY, "sync from phone");
+    logDirty = false;
     renderLibrary(); renderSourceOptions(); updateSyncState(true);
     els.sheetStatus.textContent = "✓ Connected — your log is syncing.";
   } catch (e) {
@@ -738,6 +763,11 @@ async function saveWavToFolder(rec) {
   return name;
 }
 els.folderPick.addEventListener("click", chooseSampleFolder);
+
+// Auto-commit safety net: keep retrying any pending change until it's on GitHub.
+window.addEventListener("online", () => flushLog());
+document.addEventListener("visibilitychange", () => { if (!document.hidden) flushLog(); });
+setInterval(() => { if (logDirty) flushLog(); }, 15000);
 
 // ---- startup wordmark reel (from desktop) -------------------------------
 const LOGO_GLYPHS = "▚▞▜▙▛▟▖▗▘▝░▒▓#%*+=";
