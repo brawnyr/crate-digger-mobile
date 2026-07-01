@@ -576,3 +576,7 @@ header { position: relative; }
 .lib-dl:hover { color: var(--rose); border-color: rgba(238, 147, 187, 0.5); }
 .lib-dl:active { transform: scale(0.9); }
 .lib-dl.working { color: var(--cream); opacity: 0.7; }
+
+/* ---------------- desktop sample-folder row in settings ---------------- */
+.sheet-folder.hidden { display: none; }
+.sheet-sep { border: none; border-top: 1px solid var(--glass-line); margin: 18px 0 14px; }

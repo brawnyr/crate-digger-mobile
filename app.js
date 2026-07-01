@@ -59,6 +59,7 @@ const els = {
   gear: $("gear"), settings: $("settings"), settingsClose: $("settingsClose"),
   tokenInput: $("tokenInput"), tokenSave: $("tokenSave"), tokenClear: $("tokenClear"),
   sheetStatus: $("sheetStatus"),
+  folderRow: $("folderRow"), folderPick: $("folderPick"), folderStatus: $("folderStatus"),
 };
 
 // ---- spinning disc (verbatim from desktop) ------------------------------
@@ -514,16 +515,27 @@ function showExhausted(msg) {
 
 async function keep() {
   if (busy || !currentRecord) return;
+  const rec = currentRecord;
   els.player.pause();
   setBusy(true, "💾 Keeping it…");
-  markVerdict(currentRecord, currentRecord.source, "keep");
-  currentRecord.downloaded = true; currentRecord.listened = false;
-  updateStateChips(currentRecord);
+  markVerdict(rec, rec.source, "keep");
+  rec.downloaded = true; rec.listened = false;
+  updateStateChips(rec);
   clearPending();
   renderLibrary();
-  await persistLog("keep: " + (currentRecord.title || currentRecord.cache_name));
+  let note = token() ? "synced to your crate log." : "saved on this device.";
+  if (sampleDir) {                              // desktop: write a WAV into the sample folder
+    try {
+      setBusy(true, "💾 Converting to WAV → your sample folder…");
+      const fn = await saveWavToFolder(rec);
+      note = "WAV → " + sampleFolderName + "/" + fn;
+    } catch (e) {
+      note = "⚠ WAV save failed: " + e.message;
+    }
+  }
+  await persistLog("keep: " + (rec.title || rec.cache_name));
   renderSourceOptions();
-  toast("✅ Kept — " + (token() ? "synced to your crate log." : "saved on this device."), "ok");
+  toast("✅ Kept — " + note, note[0] === "⚠" ? "err" : "ok");
   setBusy(false);
   spin();
 }
@@ -599,6 +611,7 @@ function updateSyncState(ok, err) {
 function openSheet() {
   els.tokenInput.value = token();
   els.sheetStatus.textContent = token() ? "Token saved on this device." : "";
+  if (window.showDirectoryPicker) { els.folderRow.classList.remove("hidden"); updateFolderStatus(); }
   els.settings.classList.remove("hidden");
   els.settings.setAttribute("aria-hidden", "false");
 }
@@ -627,6 +640,104 @@ els.tokenClear.addEventListener("click", () => {
   els.tokenInput.value = ""; els.sheetStatus.textContent = "Token cleared — this device is local-only now.";
   updateSyncState();
 });
+
+// ---- desktop: Keep saves a WAV into a chosen folder (File System Access API) --
+// Browsers can't touch the disk freely, but desktop Chrome/Edge can write into a
+// folder the user grants once. We remember the folder handle in IndexedDB, decode
+// the MP3 with Web Audio, and write a real WAV — the same result as the old server.
+let sampleDir = null, sampleFolderName = "";
+
+function idbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open("crate-digger", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("kv");
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const g = db.transaction("kv", "readonly").objectStore("kv").get(key);
+    g.onsuccess = () => res(g.result); g.onerror = () => rej(g.error);
+  });
+}
+async function idbSet(key, val) {
+  const db = await idbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction("kv", "readwrite");
+    tx.objectStore("kv").put(val, key);
+    tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
+  });
+}
+function updateFolderStatus() {
+  if (!els.folderStatus) return;
+  els.folderStatus.textContent = sampleDir
+    ? "✓ Keep saves a WAV into: " + sampleFolderName
+    : "Not set — Keep just logs the record on this device.";
+}
+async function chooseSampleFolder() {
+  try {
+    const dir = await window.showDirectoryPicker({ mode: "readwrite", id: "crate-samples" });
+    sampleDir = dir; sampleFolderName = dir.name;
+    try { await idbSet("sampleDir", dir); } catch (_) {}
+    updateFolderStatus();
+  } catch (_) { /* user cancelled the picker */ }
+}
+async function restoreSampleFolder() {
+  if (!window.showDirectoryPicker) return;      // mobile / unsupported browser
+  try {
+    const dir = await idbGet("sampleDir");
+    if (dir) { sampleDir = dir; sampleFolderName = dir.name || "your folder"; }
+  } catch (_) {}
+  updateFolderStatus();
+}
+// AudioBuffer -> 16-bit PCM WAV (Blob)
+function audioBufferToWav(buf) {
+  const numCh = buf.numberOfChannels, sr = buf.sampleRate, n = buf.length;
+  const bytes = 44 + n * numCh * 2, ab = new ArrayBuffer(bytes), view = new DataView(ab);
+  let p = 0;
+  const str = (s) => { for (let i = 0; i < s.length; i++) view.setUint8(p++, s.charCodeAt(i)); };
+  const u16 = (d) => { view.setUint16(p, d, true); p += 2; };
+  const u32 = (d) => { view.setUint32(p, d, true); p += 4; };
+  str("RIFF"); u32(bytes - 8); str("WAVE"); str("fmt "); u32(16); u16(1); u16(numCh);
+  u32(sr); u32(sr * numCh * 2); u16(numCh * 2); u16(16); str("data"); u32(n * numCh * 2);
+  const chans = [];
+  for (let c = 0; c < numCh; c++) chans.push(buf.getChannelData(c));
+  for (let i = 0; i < n; i++)
+    for (let c = 0; c < numCh; c++) {
+      const s = Math.max(-1, Math.min(1, chans[c][i]));
+      view.setInt16(p, s < 0 ? s * 0x8000 : s * 0x7fff, true); p += 2;
+    }
+  return new Blob([ab], { type: "audio/wav" });
+}
+async function uniqueName(dir, base, ext) {
+  let name = base + ext;
+  for (let n = 2; n < 999; n++) {
+    try { await dir.getFileHandle(name); name = base + "_" + n + ext; }  // exists -> bump
+    catch (_) { return name; }                                          // free
+  }
+  return base + "_" + Date.now() + ext;
+}
+async function saveWavToFolder(rec) {
+  if ((await sampleDir.queryPermission({ mode: "readwrite" })) !== "granted") {
+    if ((await sampleDir.requestPermission({ mode: "readwrite" })) !== "granted")
+      throw new Error("folder permission denied");
+  }
+  const resp = await fetch(rec.play_url || playUrlFor(rec.identifier, rec.mp3_name));
+  if (!resp.ok) throw new Error("HTTP " + resp.status);
+  const ab = await resp.arrayBuffer();
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  let audio;
+  try { audio = await ctx.decodeAudioData(ab); } finally { ctx.close(); }
+  const blob = audioBufferToWav(audio);
+  const name = await uniqueName(sampleDir, safeName((rec.title || "") + " - " + (rec.creator || "")), ".wav");
+  const fh = await sampleDir.getFileHandle(name, { create: true });
+  const w = await fh.createWritable();
+  await w.write(blob); await w.close();
+  return name;
+}
+els.folderPick.addEventListener("click", chooseSampleFolder);
 
 // ---- startup wordmark reel (from desktop) -------------------------------
 const LOGO_GLYPHS = "▚▞▜▙▛▟▖▗▘▝░▒▓#%*+=";
@@ -675,6 +786,7 @@ async function boot() {
   await loadLog();
   renderLibrary();
   armAutoplayUnlock();
+  restoreSampleFolder();      // desktop: reconnect the sample folder if one was picked
   loadSources();
   await animateLogo();
   // re-cue a record left pending from last time, else dig fresh
