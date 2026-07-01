@@ -2,10 +2,11 @@
 // installability. Archive.org audio always streams from the network, and
 // library.json (your kept crate, updated from the desktop) is always fetched
 // fresh so the phone's playlist never goes stale — only the shell is cached.
-const CACHE = "crate-digger-v6";
+const CACHE = "crate-digger-v7";
 const SHELL = [
   "./", "./index.html", "./app.js", "./style.css", "./manifest.webmanifest",
-  "./icons/icon-192.png", "./icons/icon-512.png",
+  "./favicon.svg", "./icons/favicon-32.png", "./icons/favicon-48.png",
+  "./icons/apple-touch-icon.png", "./icons/icon-192.png", "./icons/icon-512.png",
 ];
 
 self.addEventListener("install", (e) => {
