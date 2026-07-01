@@ -550,3 +550,29 @@ header { position: relative; }
   .seek { height: 10px; }
   .lib-list li { padding: 11px 0; }
 }
+
+/* ---------------- download buttons (⬇ save MP3 to phone) ---------------- */
+.card-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
+.dl-btn {
+  border: 1px solid var(--glass-line); background: rgba(247, 236, 210, 0.08);
+  color: var(--ink); font-family: var(--mono); font-size: 0.78rem; font-weight: 600;
+  padding: 8px 14px; border-radius: var(--r-sm); cursor: pointer;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.dl-btn:hover:not(:disabled) { background: rgba(247, 236, 210, 0.16); border-color: rgba(247, 236, 210, 0.4); }
+.dl-btn:active:not(:disabled) { transform: scale(0.96); }
+.dl-btn:disabled { opacity: 0.4; cursor: default; }
+.dl-btn.working { color: var(--latte); }
+
+.lib-dl {
+  flex: 0 0 auto; width: 32px; height: 32px; border-radius: 50%;
+  border: 1px solid var(--glass-line); background: rgba(247, 236, 210, 0.06);
+  color: var(--latte); font-size: 0.82rem; cursor: pointer;
+  display: grid; place-items: center; line-height: 1;
+  transition: color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.lib-dl:hover { color: var(--rose); border-color: rgba(238, 147, 187, 0.5); }
+.lib-dl:active { transform: scale(0.9); }
+.lib-dl.working { color: var(--cream); opacity: 0.7; }

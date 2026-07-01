@@ -1,7 +1,7 @@
 // Crate Digger service worker — caches the app shell for offline launch +
 // installability. The crate log (library.json) and all Archive.org / GitHub
 // traffic always go to the network so data stays fresh.
-const CACHE = "crate-digger-v1";
+const CACHE = "crate-digger-v2";
 const SHELL = [
   "./", "./index.html", "./app.js", "./style.css", "./manifest.webmanifest",
   "./icons/icon-192.png", "./icons/icon-512.png",

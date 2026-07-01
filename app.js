@@ -52,7 +52,7 @@ const els = {
   title: $("title"), artist: $("artist"), year: $("year"), genre: $("genre"),
   label: $("label"), player: $("player"), ppBtn: $("ppBtn"), seek: $("seek"),
   seekFill: $("seekFill"), ptime: $("ptime"), pdur: $("pdur"), archive: $("archive"),
-  keep: $("keep"), toss: $("toss"), genreSelect: $("genre-select"),
+  keep: $("keep"), toss: $("toss"), dl: $("dl"), genreSelect: $("genre-select"),
   verdictTag: $("verdictTag"), toast: $("toast"), syncState: $("syncState"),
   libCount: $("libCount"), libList: $("libList"), libEmpty: $("libEmpty"),
   asciiRecord: $("asciiRecord"), logo: $("logo"), cueing: $("cueing"),
@@ -143,6 +143,34 @@ function cacheNameFor(identifier, mp3Name) {
 function encPath(p) { return p.split("/").map(encodeURIComponent).join("/"); }
 function playUrlFor(identifier, mp3Name) {
   return "https://archive.org/download/" + encodeURIComponent(identifier) + "/" + encPath(mp3Name);
+}
+// mirror app.py _safe_filename so downloads land with a clean "Title - Artist.mp3"
+function safeName(text) {
+  text = String(text || "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "").replace(/\s+/g, " ").trim().replace(/^[.\s]+|[.\s]+$/g, "");
+  return (text || "record").slice(0, 110);
+}
+// Fetch the MP3 bytes (CORS is open) and save them to the phone's Downloads.
+async function downloadRecord(rec, btn) {
+  if (!rec) return;
+  const url = rec.play_url || playUrlFor(rec.identifier, rec.mp3_name);
+  const name = safeName((rec.title || "") + " - " + (rec.creator || "")) + ".mp3";
+  const restore = btn ? btn.textContent : "";
+  if (btn) { btn.disabled = true; btn.classList.add("working"); if (btn.id === "dl") btn.textContent = "⏳ Downloading…"; }
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const blob = await r.blob();
+    const obj = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = obj; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(obj), 5000);
+    toast("⬇ Saved to your phone: " + name, "ok");
+  } catch (e) {
+    toast("⚠️ Download failed: " + e.message + " — try again.", "err");
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove("working"); if (btn.id === "dl") btn.textContent = restore || "⬇ Download"; }
+  }
 }
 
 // ---- Internet Archive client (ported from app.py) -----------------------
@@ -426,7 +454,7 @@ function clearPending() { try { localStorage.removeItem(LS.pending); } catch (_)
 
 async function presentRecord(rec) {
   currentRecord = rec;
-  els.keep.disabled = els.toss.disabled = false;
+  els.keep.disabled = els.toss.disabled = els.dl.disabled = false;
   els.title.textContent = rec.title || "(untitled)";
   els.artist.textContent = rec.creator || "Unknown artist";
   els.year.textContent = rec.year || "";
@@ -481,7 +509,7 @@ function showExhausted(msg) {
   els.placeholder.innerHTML =
     '<span class="ph-lead">🎉 ' + esc(msg) + '</span>' +
     '<span class="ph-sub">Pick another crate above to keep digging.</span>';
-  els.keep.disabled = els.toss.disabled = true;
+  els.keep.disabled = els.toss.disabled = els.dl.disabled = true;
 }
 
 async function keep() {
@@ -512,6 +540,7 @@ els.toss.addEventListener("click", async () => {
   spin();
 });
 els.keep.addEventListener("click", keep);
+els.dl.addEventListener("click", () => downloadRecord(currentRecord, els.dl));
 els.genreSelect.addEventListener("change", () => { clearToast(); spin(true); });
 
 // ---- crate log render ---------------------------------------------------
@@ -534,7 +563,8 @@ function renderLibrary() {
       '<span class="lib-play" aria-hidden="true">▶</span>' +
       '<span class="lib-main"><span class="lib-title">' + esc(e.title || "(untitled)") + '</span>' +
       '<span class="lib-artist">' + sub + '</span></span>' +
-      '<span class="lib-badges">' + badge + '</span></li>';
+      '<span class="lib-badges">' + badge + '</span>' +
+      '<button class="lib-dl" type="button" title="Download to phone" aria-label="Download">⬇</button></li>';
   }).join("");
 }
 // tap a logged record to re-cue and play it (your kept list = a playlist)
@@ -543,6 +573,8 @@ els.libList.addEventListener("click", (ev) => {
   if (!li) return;
   const e = LIBRARY[li.dataset.key];
   if (!e || !e.identifier) return;
+  const dlBtn = ev.target.closest(".lib-dl");
+  if (dlBtn) { downloadRecord(entryToRecord(e), dlBtn); return; }
   clearToast();
   presentRecord(entryToRecord(e));
   els.card.scrollIntoView({ behavior: "smooth", block: "center" });
