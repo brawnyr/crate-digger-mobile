@@ -1,12 +1,12 @@
 "use strict";
 
 // ===========================================================================
-// Crate Digger — mobile / serverless edition.
-// Everything the Python server did now runs in the browser:
-//   • digs random records straight from the Internet Archive API (CORS-open)
-//   • streams the MP3 straight from Archive.org (no download, no storage)
-//   • the crate log lives in a GitHub repo — keep/toss commits there so the
-//     phone and desktop stay in sync ("GitHub as the sync layer").
+// Crate Digger — one serverless app, two modes (see MODE below).
+//   • AUDITIONER (desktop Chromium): digs the Internet Archive, keep/toss,
+//     saves kept records as WAVs into a chosen folder, and syncs the crate log
+//     (library.json) to GitHub — "GitHub as the sync layer".
+//   • PLAYER (phone / other browsers): reads the KEPT records from library.json
+//     and plays them back-to-back, streamed from Archive.org. Read-only.
 // ===========================================================================
 
 // ---- config -------------------------------------------------------------
@@ -14,6 +14,12 @@ const GH = { owner: "brawnyr", repo: "crate-digger", branch: "main", path: "libr
 const LS = { token: "cd_gh_token", log: "cd_log_cache", sha: "cd_log_sha", pending: "cd_pending" };
 
 const DEFAULT_SOURCE_KEY = "lp_soul_blues";
+
+// Two modes in one app. Desktop Chromium exposes the File System Access API,
+// which the auditioner needs to save WAVs — so it's a sound proxy for "this
+// machine can audition". Everything else (phone, Firefox, Safari) is the player.
+// index.html sets the same value on <html data-mode> before paint, for the CSS.
+const MODE = window.showDirectoryPicker ? "audition" : "play";
 
 // Same record pools as the desktop app (app.py SOURCES).
 const SOURCES = [
@@ -60,6 +66,7 @@ const els = {
   tokenInput: $("tokenInput"), tokenSave: $("tokenSave"), tokenClear: $("tokenClear"),
   sheetStatus: $("sheetStatus"),
   folderRow: $("folderRow"), folderPick: $("folderPick"), folderStatus: $("folderStatus"),
+  skip: $("skip"),
 };
 
 // ---- spinning disc (verbatim from desktop) ------------------------------
@@ -393,6 +400,7 @@ function setBusy(state, msg) {
   busy = state;
   els.keep.disabled = state || !currentRecord;
   els.toss.disabled = state || !currentRecord;
+  els.skip.disabled = state;
   els.genreSelect.disabled = state;
   if (state && msg) toast(msg, "busy");
 }
@@ -576,7 +584,10 @@ els.toss.addEventListener("click", async () => {
 });
 els.keep.addEventListener("click", keep);
 els.dl.addEventListener("click", () => downloadRecord(currentRecord, els.dl));
-els.genreSelect.addEventListener("change", () => { clearToast(); spin(true); });
+els.genreSelect.addEventListener("change", () => {
+  clearToast();
+  if (MODE === "play") { buildPlaylist(); playKept(); } else spin(true);
+});
 
 // ---- crate log render ---------------------------------------------------
 let libFilter = "all";
@@ -769,6 +780,95 @@ window.addEventListener("online", () => flushLog());
 document.addEventListener("visibilitychange", () => { if (!document.hidden) flushLog(); });
 setInterval(() => { if (logDirty) flushLog(); }, 15000);
 
+// ===========================================================================
+// PLAYER MODE (phone / non-Chromium) — read the KEPT crate from library.json
+// and play it back-to-back. No dig, no keep/toss, no token: library.json is
+// read-only input here, written by the desktop auditioner.
+// ===========================================================================
+let KEPT = [], playlist = [], pos = -1;
+function isKept(e) {
+  return e && e.identifier && e.mp3_name &&
+    (e.downloaded === true || (Array.isArray(e.kept_files) && e.kept_files.length > 0));
+}
+async function loadKept() {
+  const r = await fetch("./library.json", { cache: "no-store" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const raw = await r.json();
+  const entries = Array.isArray(raw) ? raw : Object.values(raw);
+  KEPT = entries.filter(isKept).map((e) => ({
+    title: e.title || "(untitled)", creator: e.creator || "Unknown artist",
+    year: String(e.year || e.date || "").split("-")[0], genre: e.genre || "",
+    album: e.album || "", label: e.label || "", source: e.source || "",
+    archive_url: e.archive_url || ("https://archive.org/details/" + e.identifier),
+    play_url: playUrlFor(e.identifier, e.mp3_name),
+  }));
+}
+// crate dropdown = "All kept" + one option per source crate present in the kept set
+function loadKeptSources() {
+  const present = [...new Set(KEPT.map((e) => e.source).filter(Boolean))];
+  const opts = ['<option value="">🎧 All kept — shuffle</option>'];
+  for (const s of present) opts.push(`<option value="${esc(s)}">${esc(baseSourceLabel(s))}</option>`);
+  els.genreSelect.innerHTML = opts.join("");
+  els.genreSelect.value = "";
+}
+function buildPlaylist() {
+  const f = els.genreSelect.value;
+  playlist = shuffle(f ? KEPT.filter((e) => e.source === f) : KEPT.slice());
+  pos = -1;
+}
+function nextKept() { if (!playlist.length) return null; pos = (pos + 1) % playlist.length; return playlist[pos]; }
+async function presentKept(rec) {
+  currentRecord = rec;
+  els.title.textContent = rec.title || "(untitled)";
+  els.artist.textContent = rec.creator || "Unknown artist";
+  els.year.textContent = rec.year || "";
+  els.genre.textContent = rec.genre || "";
+  els.label.textContent = rec.album ? "💿 " + rec.album : (rec.label ? "Label: " + rec.label : "");
+  els.archive.href = rec.archive_url || "#";
+  setLoading(true, "📻 cueing it up…");
+  const ready = await loadAudio(rec.play_url);
+  if (currentRecord !== rec) return;
+  setLoading(false);
+  els.placeholder.classList.add("hidden");
+  els.card.classList.remove("hidden", "in");
+  void els.card.offsetWidth;
+  els.card.classList.add("in");
+  if (!ready) { toast("⚠️ Couldn't load that one — skipping…", "err"); setTimeout(() => { if (!busy) playKept(); }, 900); return; }
+  els.player.play().catch(() => {});
+}
+async function playKept() {
+  if (busy) return;
+  const rec = nextKept();
+  if (!rec) { setLoading(false); showEmptyKept(); return; }
+  setBusy(true);
+  els.player.pause();
+  try { clearToast(); await presentKept(rec); }
+  catch (e) { toast("⚠️ " + e.message + " — tap ⏭ for the next one.", "err"); }
+  finally { setBusy(false); }
+}
+function showEmptyKept() {
+  els.placeholder.innerHTML =
+    '<span class="ph-lead">◇ Your crate is empty</span>' +
+    '<span class="ph-sub">keep some records on the desktop — they\'ll play here</span>';
+  els.placeholder.classList.remove("hidden");
+  els.card.classList.add("hidden");
+}
+els.skip.addEventListener("click", () => { clearToast(); playKept(); });
+// player is radio-style: when a track ends, roll straight into the next kept one
+els.player.addEventListener("ended", () => { if (MODE === "play" && !busy) playKept(); });
+
+// mode-specific tagline + footer copy (elements exist in both modes)
+function setModeText() {
+  const t = $("tagline"), f = $("footHint");
+  if (MODE === "play") {
+    if (t) t.textContent = "// your kept crate — the good ones you saved, on the go";
+    if (f) f.textContent = "🎧 Your kept records, streamed from the Internet Archive · tap ⏭ for the next";
+  } else {
+    if (t) t.textContent = "// dig the crate — keep it or toss it, one record at a time";
+    if (f) f.textContent = "🎧 Digging the Internet Archive · Keep saves a WAV + syncs your crate log";
+  }
+}
+
 // ---- startup wordmark reel (from desktop) -------------------------------
 const LOGO_GLYPHS = "▚▞▜▙▛▟▖▗▘▝░▒▓#%*+=";
 function animateLogo() {
@@ -813,16 +913,33 @@ function armAutoplayUnlock() {
 
 async function boot() {
   if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("./sw.js"); } catch (_) {} }
+  armAutoplayUnlock();
+  setModeText();
+  if (MODE === "play") return bootPlayer();
+  return bootAuditioner();
+}
+// desktop: dig / keep / toss / sync, re-cueing whatever was pending last time
+async function bootAuditioner() {
   await loadLog();
   renderLibrary();
-  armAutoplayUnlock();
-  restoreSampleFolder();      // desktop: reconnect the sample folder if one was picked
+  restoreSampleFolder();      // reconnect the sample folder if one was picked
   loadSources();
   await animateLogo();
-  // re-cue a record left pending from last time, else dig fresh
   let pending = null;
   try { pending = JSON.parse(localStorage.getItem(LS.pending) || "null"); } catch (_) {}
   if (pending && pending.play_url) await presentRecord(pending);
   else spin();
+}
+// phone: read the kept crate and play it (read-only; no token, no dig)
+async function bootPlayer() {
+  let err = null;
+  try { await loadKept(); } catch (e) { err = e; }
+  if (!err) loadKeptSources();
+  await animateLogo();
+  setLoading(false);
+  if (err) { toast("⚠️ Couldn't load your crate: " + err.message, "err"); showEmptyKept(); return; }
+  if (!KEPT.length) { showEmptyKept(); return; }
+  buildPlaylist();
+  playKept();
 }
 boot();

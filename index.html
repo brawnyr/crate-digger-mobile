@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Crate Digger</title>
 
+  <!-- Pick the mode before first paint so the UI never flashes the wrong controls.
+       Desktop Chromium has the File System Access API (needed to save WAVs) → it's
+       the auditioner. Everything else (phone, Firefox, Safari) → the player. -->
+  <script>document.documentElement.setAttribute("data-mode", window.showDirectoryPicker ? "audition" : "play");</script>
+
   <!-- PWA / installable home-screen app -->
   <link rel="manifest" href="./manifest.webmanifest" />
   <meta name="theme-color" content="#160d06" />
@@ -29,7 +34,7 @@
 
   <div class="app">
     <header>
-      <button id="gear" class="gear" type="button" aria-label="Settings">⚙</button>
+      <button id="gear" class="gear audition-only" type="button" aria-label="Settings">⚙</button>
       <h1 class="sr-only">Crate Digger</h1>
 <pre id="logo" class="logo" aria-hidden="true">   __________  ___  ____________
   / ____/ __ \/   |/_  __/ ____/
@@ -41,7 +46,7 @@
   / / / // // / __/ / __/ __/ / /_/ /
  / /_/ // // /_/ / /_/ / /___/ _, _/
 /_____/___/\____/\____/_____/_/ |_|</pre>
-      <p class="tagline">// keep it or toss it — one record at a time, in your pocket</p>
+      <p class="tagline" id="tagline">// dig, keep, and play — records from the Internet Archive</p>
     </header>
 
     <section class="stage">
@@ -73,18 +78,18 @@
             </div>
             <span class="ptimes"><span id="ptime">0:00</span> / <span id="pdur">0:00</span></span>
           </div>
-          <div class="statebar">
+          <div class="statebar audition-only">
             <span id="verdictTag" class="state-badge hidden"></span>
           </div>
           <div class="card-actions">
-            <button id="dl" class="dl-btn" type="button" disabled>⬇ Download</button>
+            <button id="dl" class="dl-btn audition-only" type="button" disabled>⬇ Download</button>
             <a id="archive" class="archive-link" target="_blank" rel="noopener">View on Archive.org ↗</a>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- which crate you're digging through; changing it cues a fresh record -->
+    <!-- which crate: on desktop you dig it; on phone it filters your kept records -->
     <section class="digbar">
       <label class="genre">
         <span class="genre-tag">crate&nbsp;»</span>
@@ -92,15 +97,20 @@
       </label>
     </section>
 
-    <!-- the verdict — keep it or toss it, then straight to the next record -->
-    <section class="verdict">
+    <!-- desktop auditioner: keep it or toss it, then straight to the next dig -->
+    <section class="verdict audition-only">
       <button id="toss" class="btn toss" disabled>🗑 Toss it</button>
       <button id="keep" class="btn keep" disabled>💾 Keep it</button>
     </section>
 
+    <!-- phone player: skip straight to the next kept record -->
+    <section class="controls play-only">
+      <button id="skip" class="btn skip" type="button">⏭ Next record</button>
+    </section>
+
     <div id="toast" class="toast hidden"></div>
 
-    <section class="library">
+    <section class="library audition-only">
       <h3>Crate log <span id="libCount" class="count">0</span></h3>
       <div class="lib-tabs">
         <button class="lib-tab active" data-filter="all" type="button">all <span class="tab-n">0</span></button>
@@ -112,20 +122,20 @@
       <p class="dest">Log sync: <code id="syncState">checking…</code></p>
     </section>
 
-    <footer class="shutdown-hint">
-      🎧 Stream or ⬇ download tracks to your phone · tap ⚙ to sync your log
+    <footer class="shutdown-hint" id="footHint">
+      🎧 Records from the Internet Archive
     </footer>
   </div>
 
-  <!-- ============ settings / sync panel ============ -->
-  <div id="settings" class="sheet hidden" aria-hidden="true">
+  <!-- ============ settings / sync panel (auditioner only) ============ -->
+  <div id="settings" class="sheet hidden audition-only" aria-hidden="true">
     <div class="sheet-card">
       <div class="sheet-head">
         <h3>⚙ Sync settings</h3>
         <button id="settingsClose" class="sheet-x" type="button" aria-label="Close">✕</button>
       </div>
       <p class="sheet-sub">
-        Your crate log lives in a GitHub repo so phone &amp; desktop stay in sync.
+        Your crate log lives in a GitHub repo so this auditioner and the phone player stay in sync.
         Paste a token below to let this device <strong>keep/toss</strong> back to it.
         Without a token you can still dig &amp; listen — verdicts save on this device only.
       </p>
@@ -149,7 +159,7 @@
         <summary>How do I get a token?</summary>
         <ol>
           <li>On GitHub → <em>Settings → Developer settings → Fine-grained tokens → Generate new token</em>.</li>
-          <li>Repository access → <em>Only select repositories</em> → <code>crate-digger-mobile</code>.</li>
+          <li>Repository access → <em>Only select repositories</em> → <code>crate-digger</code>.</li>
           <li>Permissions → <em>Contents: Read and write</em>.</li>
           <li>Generate, copy the <code>github_pat_…</code> string, paste it here.</li>
         </ol>

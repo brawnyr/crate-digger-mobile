@@ -580,3 +580,27 @@ header { position: relative; }
 /* ---------------- desktop sample-folder row in settings ---------------- */
 .sheet-folder.hidden { display: none; }
 .sheet-sep { border: none; border-top: 1px solid var(--glass-line); margin: 18px 0 14px; }
+
+/* ==========================================================================
+   Unified modes — desktop = auditioner, phone = player. The mode is set on
+   <html data-mode> before first paint (inline script in index.html), so the
+   controls for the other mode never flash. Auditioner: keep/toss, gear,
+   library log, download, settings. Player: the ⏭ Next-record button.
+   ========================================================================== */
+html[data-mode="play"] .audition-only { display: none !important; }
+html[data-mode="audition"] .play-only { display: none !important; }
+
+/* phone player: the ⏭ Next-record button (mirrors the verdict buttons' weight) */
+.controls { display: flex; justify-content: center; margin: 18px 0 6px; }
+.btn.skip {
+  height: 54px; padding: 0 26px; font-size: 0.95rem; border-radius: var(--r-lg); font-weight: 700;
+  background: linear-gradient(135deg, rgba(238, 147, 187, 0.95), rgba(201, 143, 84, 0.9));
+  color: #2a0f1c; border-color: rgba(247, 236, 210, 0.4);
+}
+.btn.skip:hover:not(:disabled) {
+  color: #2a0f1c; box-shadow: 0 10px 30px rgba(238, 147, 187, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+@media (max-width: 620px) {
+  .controls { width: 100%; }
+  .controls .btn { flex: 1 1 auto; justify-content: center; height: 58px; font-size: 1rem; }
+}

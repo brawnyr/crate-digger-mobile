@@ -1,7 +1,7 @@
 {
   "name": "Crate Digger",
   "short_name": "Crate Digger",
-  "description": "Dig, keep, and toss records — straight from the Internet Archive.",
+  "description": "Dig the Internet Archive on desktop; play your kept crate on your phone.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
