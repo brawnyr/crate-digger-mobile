@@ -912,25 +912,5 @@
   "seen_at": 1782869836.7594547,
   "listened_at": null,
   "downloaded_at": 1782869836.7624586
- },
- "__desktop_sync_selftest__.mp3": {
-  "key": "__desktop_sync_selftest__.mp3",
-  "cache_name": "__desktop_sync_selftest__.mp3",
-  "identifier": "",
-  "mp3_name": "",
-  "title": "SYNC SELF TEST",
-  "creator": "test",
-  "year": "",
-  "album": "",
-  "genre": "",
-  "label": "",
-  "archive_url": "",
-  "source": "",
-  "listened": true,
-  "downloaded": false,
-  "kept_files": [],
-  "seen_at": 1782910548.785096,
-  "listened_at": 1782910548.785096,
-  "downloaded_at": null
  }
 }
