@@ -1,7 +1,7 @@
 {
   "name": "Crate Digger",
   "short_name": "Crate Digger",
-  "description": "Play your kept crate — the records you saved, streamed from the Internet Archive.",
+  "description": "Dig the Internet Archive on desktop; play your kept crate on your phone.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
