@@ -735,7 +735,7 @@ function animateLogo() {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = real; return resolve(); }
     const lines = real.split("\n");
     const width = Math.max(...lines.map((l) => l.length));
-    setLoading(true, "◇ warming up the turntable…");
+    setLoading(true);
     const DUR = 1150, t0 = performance.now();
     function frame(now) {
       const k = Math.min(1, (now - t0) / DUR);
