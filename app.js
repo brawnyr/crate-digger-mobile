@@ -219,7 +219,12 @@ async function pickRandom(query, pick, tries, exclude) {
   return null;
 }
 
-// ---- crate log — localStorage, seeded from library.json in the repo ------
+// ---- crate log ------------------------------------------------------------
+// Three layers, merged newest-verdict-wins:
+//   1. localStorage — the working copy, updated on every verdict.
+//   2. crate-log.json in your sample folder — the durable copy on disk, written
+//      on every verdict once a folder is set. Survives a cleared browser.
+//   3. library.json in the repo — the seed this app shipped with.
 let LIBRARY = {};
 
 function logStamp(e) { return e.downloaded_at || e.listened_at || e.seen_at || 0; }
@@ -235,8 +240,11 @@ function saveLocal() {
 function loadLocal() {
   try { LIBRARY = JSON.parse(localStorage.getItem(LS.log) || "{}") || {}; } catch (_) { LIBRARY = {}; }
 }
-// Merge in library.json (the log this repo shipped with) so history survives a
-// cleared browser profile; from then on localStorage is the source of truth.
+// every verdict: update the working copy and mirror it to disk
+function persistLog() {
+  saveLocal();
+  writeLogToFolder();
+}
 async function loadLog() {
   loadLocal();
   try {
@@ -492,7 +500,7 @@ async function keep() {
       note = "⚠ WAV save failed: " + e.message;
     }
   }
-  saveLocal();
+  persistLog();
   renderSourceOptions();
   toast("✅ Kept — " + note, note[0] === "⚠" ? "err" : "ok");
   setBusy(false);
@@ -506,7 +514,7 @@ els.toss.addEventListener("click", async () => {
   markVerdict(currentRecord, currentRecord.source, "toss");
   clearPending();
   renderLibrary();
-  saveLocal();
+  persistLog();
   renderSourceOptions();
   spin();
 });
@@ -596,12 +604,54 @@ function updateFolderStatus() {
   if (!els.folderStatus) return;
   els.folderStatus.textContent = sampleDir ? sampleFolderName : "no folder set";
 }
+// The crate log lives on disk next to the WAVs — the durable copy of your
+// keep/toss history, independent of browser storage.
+const LOG_FILE = "crate-log.json";
+async function folderPermission(ask) {
+  if (!sampleDir) return false;
+  try {
+    if ((await sampleDir.queryPermission({ mode: "readwrite" })) === "granted") return true;
+    if (!ask) return false;
+    return (await sampleDir.requestPermission({ mode: "readwrite" })) === "granted";
+  } catch (_) { return false; }
+}
+async function readLogFromFolder() {
+  try {
+    const fh = await sampleDir.getFileHandle(LOG_FILE);
+    const disk = JSON.parse(await (await fh.getFile()).text()) || {};
+    LIBRARY = mergeLogs(disk, LIBRARY);
+  } catch (_) { /* no crate-log.json yet */ }
+}
+let logWriting = false, logWriteQueued = false;
+async function writeLogToFolder() {
+  if (!(await folderPermission(false))) return;
+  if (logWriting) { logWriteQueued = true; return; }   // serialize; last write wins
+  logWriting = true;
+  try {
+    const fh = await sampleDir.getFileHandle(LOG_FILE, { create: true });
+    const w = await fh.createWritable();
+    await w.write(JSON.stringify(LIBRARY, null, 1));
+    await w.close();
+  } catch (_) { /* folder unplugged / permission revoked — localStorage still has it */ }
+  logWriting = false;
+  if (logWriteQueued) { logWriteQueued = false; writeLogToFolder(); }
+}
+// merge the on-disk log in, then mirror the union back out
+async function syncLogWithFolder(ask) {
+  if (!(await folderPermission(ask))) return;
+  await readLogFromFolder();
+  saveLocal();
+  renderLibrary();
+  renderSourceOptions();
+  writeLogToFolder();
+}
 async function chooseSampleFolder() {
   try {
     const dir = await window.showDirectoryPicker({ mode: "readwrite", id: "crate-samples" });
     sampleDir = dir; sampleFolderName = dir.name;
     try { await idbSet("sampleDir", dir); } catch (_) {}
     updateFolderStatus();
+    await syncLogWithFolder(true);
   } catch (_) { /* user cancelled the picker */ }
 }
 async function restoreSampleFolder() {
@@ -615,6 +665,9 @@ async function restoreSampleFolder() {
     if (dir) { sampleDir = dir; sampleFolderName = dir.name || "your folder"; }
   } catch (_) {}
   updateFolderStatus();
+  // If Chrome remembered the grant, pull the on-disk log in right away; otherwise
+  // the first user gesture re-asks (requestPermission needs user activation).
+  await syncLogWithFolder(false);
 }
 // AudioBuffer -> 16-bit PCM WAV (Blob)
 function audioBufferToWav(buf) {
@@ -700,6 +753,9 @@ function armAutoplayUnlock() {
   const go = () => {
     window.removeEventListener("pointerdown", go); window.removeEventListener("keydown", go);
     if (currentRecord && els.player.paused) els.player.play().catch(() => {});
+    // First gesture = user activation: re-ask folder permission if Chrome didn't
+    // remember it, and pull the on-disk crate log in.
+    syncLogWithFolder(true);
   };
   window.addEventListener("pointerdown", go);
   window.addEventListener("keydown", go);

@@ -19,8 +19,13 @@ No server, no build step — it's a static site on GitHub Pages.
 4. Everything you've judged lands in the **crate log**, so the same record never
    comes back around — click any row to re-cue it.
 
-The crate log lives in your browser (localStorage), seeded from `library.json` in
-this repo on first load.
+## Where the crate log lives
+
+Every verdict is written to **`crate-log.json` in your sample folder**, right next to
+the WAVs — a real file on disk, so your history survives anything that happens to the
+browser. The browser's localStorage is just the working copy, and `library.json` in
+this repo is the seed it all started from; on boot the app merges all three
+(newest verdict wins).
 
 ## Requirements
 
