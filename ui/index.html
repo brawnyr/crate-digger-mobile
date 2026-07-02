@@ -85,15 +85,9 @@
       </label>
     </section>
 
-    <!-- keep it or toss it, then straight to the next dig. Wordless ASCII blobs:
-         the dense warm one keeps, the crumbling one tosses — labels are aria-only. -->
+    <!-- no verdict buttons — K keeps, T tosses; the verdict plays out on the vinyl -->
     <section class="verdict">
-      <button id="toss" class="btn toss" type="button" disabled aria-label="Toss it" title="Toss it"><pre aria-hidden="true"> ·˙ .:*~*:. ˙·
-˙ ·`  ·˙·  ´· ˙
-  ·   ˙ ˙   ·  </pre></button>
-      <button id="keep" class="btn keep" type="button" disabled aria-label="Keep it" title="Keep it"><pre aria-hidden="true"> .:=*%@@%*=:.
-:*%@@@@@@@@%*:
- `=*%@@@@%*=´ </pre></button>
+      <p class="keyhint">// <kbd>K</kbd> keep it&ensp;·&ensp;<kbd>T</kbd> toss it</p>
     </section>
 
     <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>

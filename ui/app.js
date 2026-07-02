@@ -50,7 +50,7 @@ const els = {
   title: $("title"), artist: $("artist"), year: $("year"), genre: $("genre"),
   label: $("label"), player: $("player"), ppBtn: $("ppBtn"), seek: $("seek"),
   seekFill: $("seekFill"), ptime: $("ptime"), pdur: $("pdur"), archive: $("archive"),
-  keep: $("keep"), toss: $("toss"), genreSelect: $("genre-select"),
+  genreSelect: $("genre-select"),
   verdictTag: $("verdictTag"), toast: $("toast"),
   libCount: $("libCount"), libList: $("libList"), libEmpty: $("libEmpty"),
   asciiRecord: $("asciiRecord"), logo: $("logo"), cueing: $("cueing"),
@@ -67,7 +67,24 @@ function smoothstep(a, b, x) {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 }
+// The verdict plays out on the disc itself: keep sends a ring of light racing
+// outward; toss crumbles the disc to dust. CSS handles the color wash (fx-*).
+let discFx = null, discFxT0 = 0;
+const DISC_FX_MS = 900;
+function discEffect(kind) {
+  els.asciiRecord.classList.remove("fx-keep", "fx-toss");
+  void els.asciiRecord.offsetWidth;
+  els.asciiRecord.classList.add("fx-" + kind);
+  setTimeout(() => els.asciiRecord.classList.remove("fx-" + kind), DISC_FX_MS);
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;  // still disc — skip the shape pass
+  discFx = kind; discFxT0 = performance.now();
+}
 function renderDisc(phase) {
+  let fxK = 0;
+  if (discFx) {
+    fxK = (performance.now() - discFxT0) / DISC_FX_MS;
+    if (fxK >= 1) { discFx = null; fxK = 0; }
+  }
   let out = "";
   for (let y = 0; y < D_ROWS; y++) {
     for (let x = 0; x < D_COLS; x++) {
@@ -81,7 +98,16 @@ function renderDisc(phase) {
       const surface = 0.12 * (0.5 + 0.5 * Math.sin(r * 2.3));
       let n = Math.max(arm, surface) * smoothstep(D_OUTER + 0.4, D_OUTER - 3.2, r);
       n = n < 0 ? 0 : n > 1 ? 1 : n;
-      out += D_RAMP[Math.round(n * (D_RAMP.length - 1))];
+      if (discFx === "keep") {           // ring of light racing outward
+        const ring = 1 - Math.min(1, Math.abs(r - fxK * (D_OUTER + 2)) / 2.4);
+        n = Math.min(1, n + ring * ring);
+      }
+      let ch = D_RAMP[Math.round(n * (D_RAMP.length - 1))];
+      if (discFx === "toss") {           // crumble: cells blow away as dust
+        const h = Math.abs(Math.sin(x * 127.1 + y * 311.7) * 43758.5453) % 1;
+        if (h < fxK * 1.15) ch = h < fxK * 0.6 ? " " : "·";
+      }
+      out += ch;
     }
     if (y < D_ROWS - 1) out += "\n";
   }
@@ -304,8 +330,6 @@ function toast(msg, kind) {
 function clearToast() { if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; } els.toast.className = "toast hidden"; }
 function setBusy(state, msg) {
   busy = state;
-  els.keep.disabled = state || !currentRecord;
-  els.toss.disabled = state || !currentRecord;
   els.genreSelect.disabled = state;
   if (state && msg) toast(msg, "busy");
 }
@@ -411,7 +435,6 @@ function clearPending() { try { localStorage.removeItem(LS.pending); } catch (_)
 
 async function presentRecord(rec) {
   currentRecord = rec;
-  els.keep.disabled = els.toss.disabled = false;
   els.title.textContent = rec.title || "(untitled)";
   els.artist.textContent = rec.creator || "Unknown artist";
   els.year.textContent = rec.year || "";
@@ -472,13 +495,13 @@ function showExhausted(msg) {
   els.placeholder.innerHTML =
     '<span class="ph-lead">🎉 ' + esc(msg) + '</span>' +
     '<span class="ph-sub">Pick another crate above to keep digging.</span>';
-  els.keep.disabled = els.toss.disabled = true;
 }
 
 async function keep() {
   if (busy || !currentRecord) return;
   const rec = currentRecord;
   els.player.pause();
+  discEffect("keep");
   setBusy(true, "💾 Keeping it…");
   markVerdict(rec, rec.source, "keep");
   saveLocal();                                  // verdict survives even if the WAV save is abandoned
@@ -507,18 +530,25 @@ async function keep() {
   spin();
 }
 
-els.toss.addEventListener("click", async () => {
+function toss() {
   if (busy || !currentRecord) return;
   els.player.pause();
-  els.keep.disabled = els.toss.disabled = true;
+  discEffect("toss");
   markVerdict(currentRecord, currentRecord.source, "toss");
   clearPending();
   renderLibrary();
   persistLog();
   renderSourceOptions();
   spin();
+}
+// no verdict buttons — K keeps, T tosses (hinted under the crate select)
+window.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (/^(input|select|textarea)$/i.test(e.target.tagName)) return;
+  const k = e.key.toLowerCase();
+  if (k === "k") keep();
+  else if (k === "t") toss();
 });
-els.keep.addEventListener("click", keep);
 els.genreSelect.addEventListener("change", () => {
   clearToast();
   if (busy) { spinQueued = true; return; }
