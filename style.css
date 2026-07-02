@@ -7,12 +7,9 @@
   --abyss: #160d06;
   --cream: #f7ecd2;
   --latte: #e6b06a;
-  --caramel: #c98f54;
   --rust: #b86a36;
   --rose: #ee93bb;
   --violet: #9a6fd6;
-  --grape: #6f4ea8;
-  --coffee: #2a1a10;
   /* ink on the haze */
   --ink: #f8efdd;
   --body: #e7d8bf;
@@ -25,7 +22,6 @@
   --glass-line-soft: rgba(247, 236, 210, 0.10);
   /* semantic */
   --success: #8fd6a0;
-  --error: #f3a08c;
   /* radii */
   --r-xs: 5px;
   --r-sm: 8px;
@@ -177,7 +173,6 @@ header { text-align: center; margin-bottom: 30px; }
   color: var(--body); font-size: 0.95rem; line-height: 1.6;
   display: flex; flex-direction: column; gap: 6px;
 }
-.placeholder strong { color: var(--rose); font-weight: 700; }
 .ph-lead { color: var(--cream); font-weight: 600; }
 .ph-sub { color: var(--muted-dim); font-size: 0.82rem; }
 .card.hidden, .placeholder.hidden, .toast.hidden, .cueing.hidden { display: none; }
@@ -356,7 +351,6 @@ select:focus { outline: none; border-color: var(--rose); box-shadow: 0 0 0 1px r
 
 /* ---------------- card verdict badge (kept / tossed) ---------------- */
 .statebar { display: flex; align-items: center; gap: 10px; margin: 2px 0 12px; }
-.statebar:empty { display: none; }
 .state-badge {
   font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: var(--pill);
 }
@@ -442,12 +436,6 @@ code {
   margin-top: 32px; text-align: center;
   color: var(--muted-dim); font-size: 0.8rem; font-weight: 500;
   text-shadow: 0 1px 8px rgba(20, 11, 5, 0.5);
-}
-.shutdown-hint kbd {
-  font-family: var(--mono); font-size: 0.76rem; font-weight: 700;
-  background: rgba(247, 236, 210, 0.1); color: var(--latte);
-  border: 1px solid var(--glass-line); border-bottom-width: 2px;
-  border-radius: var(--r-xs); padding: 1px 6px; margin: 0 1px;
 }
 
 /* ---------------- responsive ---------------- */

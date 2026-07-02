@@ -190,7 +190,7 @@ async function recordInfo(identifier, pick) {
     title, album, creator: joined(md.creator) || "Unknown artist",
     year: String(md.year || md.date || "").split("-")[0],
     label: firstOf(md.publisher), genre: joined(md.genre || md.subject),
-    length: chosen.length || "", archive_url: "https://archive.org/details/" + identifier,
+    archive_url: "https://archive.org/details/" + identifier,
     play_url: playUrlFor(identifier, chosen.name),
   };
 }
