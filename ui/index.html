@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Strict CSP for a static GitHub Pages site (no response headers available).
+       Locks scripts/styles to same-origin and limits network egress to the Internet
+       Archive. If audio ever stops loading, the culprit is almost always
+       media-src/connect-src. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; media-src https://archive.org https://*.archive.org; connect-src 'self' https://archive.org https://*.archive.org; base-uri 'none'; object-src 'none'; form-action 'none'" />
+  <title>Crate Digger</title>
+
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <!-- hazy coffee-and-milk swirl, behind everything -->
+  <canvas id="bg" aria-hidden="true"></canvas>
+  <div class="fx haze" aria-hidden="true"></div>
+  <div class="fx grain" aria-hidden="true"></div>
+  <div class="fx scan" aria-hidden="true"></div>
+
+  <div class="app">
+    <header>
+      <h1 class="sr-only">Crate Digger</h1>
+<pre id="logo" class="logo" aria-hidden="true">   __________  ___  ____________
+  / ____/ __ \/   |/_  __/ ____/
+ / /   / /_/ / /| | / / / __/
+/ /___/ _, _/ ___ |/ / / /___
+\____/_/ |_/_/  |_/_/ /_____/
+    ____  __________________________
+   / __ \/  _/ ____/ ____/ ____/ __ \
+  / / / // // / __/ / __/ __/ / /_/ /
+ / /_/ // // /_/ / /_/ / /___/ _, _/
+/_____/___/\____/\____/_____/_/ |_|</pre>
+      <p class="tagline">// dig the crate — keep it or toss it, one record at a time</p>
+    </header>
+
+    <main>
+    <section class="stage">
+      <div class="turntable">
+        <div id="record" class="record">
+          <pre id="asciiRecord" class="ascii-record" aria-hidden="true"></pre>
+        </div>
+        <div id="cueing" class="cueing hidden" aria-live="polite"></div>
+      </div>
+
+      <div class="info">
+        <div id="placeholder" class="placeholder">
+          <span class="ph-lead">◇ Warming up the turntable…</span>
+          <span class="ph-sub">cueing your first record</span>
+        </div>
+        <div id="card" class="card hidden">
+          <h2 id="title">—</h2>
+          <div class="meta">
+            <span id="artist" class="artist">—</span>
+            <span id="year" class="pill"></span>
+            <span id="genre" class="pill alt"></span>
+          </div>
+          <div id="label" class="sub"></div>
+          <audio id="player" preload="auto"></audio>
+          <div class="player">
+            <button id="ppBtn" class="pp" type="button" aria-label="Play">▶</button>
+            <div id="seek" class="seek" role="slider" aria-label="Seek" tabindex="0"
+                 aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" aria-valuetext="0:00 of 0:00">
+              <div id="seekFill" class="seek-fill"></div>
+            </div>
+            <span class="ptimes"><span id="ptime">0:00</span> / <span id="pdur">0:00</span></span>
+          </div>
+          <div class="statebar">
+            <span id="verdictTag" class="state-badge hidden"></span>
+          </div>
+          <div class="card-actions">
+            <a id="archive" class="archive-link" target="_blank" rel="noopener"
+               aria-label="View on Archive.org (opens in a new tab)">View on Archive.org ↗</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- which crate to dig -->
+    <section class="digbar">
+      <label class="genre">
+        <span class="genre-tag">crate&nbsp;»</span>
+        <select id="genre-select"><option value="">loading crates…</option></select>
+      </label>
+    </section>
+
+    <!-- keep it or toss it, then straight to the next dig -->
+    <section class="verdict">
+      <button id="toss" class="btn toss" type="button" disabled><span aria-hidden="true">🗑</span> Toss it</button>
+      <button id="keep" class="btn keep" type="button" disabled><span aria-hidden="true">💾</span> Keep it</button>
+    </section>
+
+    <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <section class="library">
+      <h3>Crate log <span id="libCount" class="count">0</span></h3>
+      <div class="lib-tabs">
+        <button class="lib-tab active" data-filter="all" type="button">all <span class="tab-n">0</span></button>
+        <button class="lib-tab" data-filter="heard" type="button">tossed <span class="tab-n">0</span></button>
+        <button class="lib-tab" data-filter="kept" type="button">kept <span class="tab-n">0</span></button>
+      </div>
+      <ul id="libList" class="lib-list"></ul>
+      <p class="lib-empty hidden" id="libEmpty">Nothing here yet — every record you dig up gets logged here.</p>
+      <p class="dest">💾 WAVs + crate log save to → <code id="folderStatus">no folder set</code>
+        <button id="folderPick" class="folder-btn" type="button">📁 choose folder</button></p>
+    </section>
+    </main>
+
+    <footer class="shutdown-hint">
+      🎧 Digging the Internet Archive · Keep saves a WAV into your sample folder
+    </footer>
+  </div>
+
+  <script src="./bg.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
