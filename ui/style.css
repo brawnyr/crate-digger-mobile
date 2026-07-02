@@ -278,8 +278,10 @@ audio#player { display: none; }
   display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
   justify-content: center; margin: 18px 0 6px;
 }
+/* the verdict pair breaks from the mono — a warm display serif, the app's only one */
 .verdict .btn {
-  height: 54px; padding: 0 26px; font-size: 0.95rem; border-radius: var(--r-lg);
+  height: 54px; padding: 0 28px; border-radius: var(--r-lg);
+  font-family: "Fraunces", Georgia, serif; font-size: 1.12rem; letter-spacing: 0.02em;
 }
 .genre {
   color: var(--muted); font-size: 0.82rem; font-weight: 600;
