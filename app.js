@@ -258,7 +258,7 @@ async function loadLog() {
 
 function libEntryFrom(rec, sourceKey) {
   return {
-    key: rec.cache_name || "", identifier: rec.identifier || "", mp3_name: rec.mp3_name || "",
+    identifier: rec.identifier || "", mp3_name: rec.mp3_name || "",
     cache_name: rec.cache_name || "", title: rec.title || "", creator: rec.creator || "",
     year: rec.year || "", album: rec.album || "", genre: rec.genre || "", label: rec.label || "",
     archive_url: rec.archive_url || "", source: sourceKey || rec.source || "",
@@ -290,7 +290,7 @@ function libList(filt) {
 }
 // upsert + mark (kept/tossed are opposites)
 function markVerdict(rec, sourceKey, kind) {
-  const key = rec.cache_name || rec.key;
+  const key = rec.cache_name;
   if (!key) return;
   let e = LIBRARY[key];
   if (!e) { e = libEntryFrom(rec, sourceKey); LIBRARY[key] = e; }
@@ -299,7 +299,7 @@ function markVerdict(rec, sourceKey, kind) {
   else { e.listened = true; e.listened_at = now; e.downloaded = false; e.downloaded_at = null; }
 }
 function entryToRecord(e) {
-  return Object.assign({}, e, { key: e.cache_name, play_url: playUrlFor(e.identifier, e.mp3_name) });
+  return Object.assign({}, e, { play_url: playUrlFor(e.identifier, e.mp3_name) });
 }
 
 // ---- audio player ---------------------------------------------------------
@@ -321,8 +321,7 @@ function setBusy(state, msg) {
   if (state && msg) toast(msg, "busy");
 }
 els.player.addEventListener("playing", () => { discPlaying = true; setLoading(false); });
-els.player.addEventListener("pause", () => { discPlaying = false; });
-els.player.addEventListener("ended", () => { discPlaying = false; });
+for (const ev of ["pause", "ended"]) els.player.addEventListener(ev, () => { discPlaying = false; });
 // mid-track buffering: spin the disc faster (no text), settle once audio resumes
 els.player.addEventListener("waiting", () => { if (currentRecord) setLoading(true); });
 
@@ -341,8 +340,7 @@ els.ppBtn.addEventListener("click", () => {
   if (els.player.paused) els.player.play().catch(() => {}); else els.player.pause();
 });
 els.player.addEventListener("play", () => { els.ppBtn.textContent = "⏸"; els.ppBtn.setAttribute("aria-label", "Pause"); });
-els.player.addEventListener("pause", () => { els.ppBtn.textContent = "▶"; els.ppBtn.setAttribute("aria-label", "Play"); });
-els.player.addEventListener("ended", () => { els.ppBtn.textContent = "▶"; els.ppBtn.setAttribute("aria-label", "Play"); });
+for (const ev of ["pause", "ended"]) els.player.addEventListener(ev, () => { els.ppBtn.textContent = "▶"; els.ppBtn.setAttribute("aria-label", "Play"); });
 els.player.addEventListener("loadstart", () => {
   els.seekFill.style.width = "0%"; els.ptime.textContent = "0:00"; els.pdur.textContent = "0:00";
 });
@@ -432,7 +430,7 @@ async function presentRecord(rec) {
   els.label.textContent = rec.album ? "💿 " + rec.album : (rec.label ? "Label: " + rec.label : "");
   els.archive.href = rec.archive_url || "#";
   // reflect any existing verdict from the log
-  const logged = LIBRARY[rec.cache_name || rec.key];
+  const logged = LIBRARY[rec.cache_name];
   updateStateChips(logged || rec);
 
   setLoading(true);
@@ -466,7 +464,7 @@ async function spin() {
       }
       throw new Error("Couldn't dig up a record.");
     }
-    info.source = src.key; info.key = info.cache_name;
+    info.source = src.key;
     clearToast();
     savePending(info);
     await presentRecord(info);
@@ -503,7 +501,7 @@ async function keep() {
     try {
       setBusy(true, "💾 Converting to WAV → your sample folder…");
       const fn = await saveWavToFolder(rec);
-      const e = LIBRARY[rec.cache_name || rec.key];
+      const e = LIBRARY[rec.cache_name];
       if (e && !(e.kept_files || (e.kept_files = [])).includes(fn)) e.kept_files.push(fn);
       note = "WAV → " + sampleFolderName + "/" + fn;
     } catch (e) {
@@ -616,7 +614,6 @@ async function idbSet(key, val) {
   });
 }
 function updateFolderStatus() {
-  if (!els.folderStatus) return;
   els.folderStatus.textContent = sampleDir ? sampleFolderName : "no folder set";
 }
 // The crate log lives on disk next to the WAVs — the durable copy of your
@@ -712,10 +709,7 @@ async function uniqueName(dir, base, ext) {
   return base + "_" + Date.now() + ext;
 }
 async function saveWavToFolder(rec) {
-  if ((await sampleDir.queryPermission({ mode: "readwrite" })) !== "granted") {
-    if ((await sampleDir.requestPermission({ mode: "readwrite" })) !== "granted")
-      throw new Error("folder permission denied");
-  }
+  if (!(await folderPermission(true))) throw new Error("folder permission denied");
   const resp = await fetch(rec.play_url || playUrlFor(rec.identifier, rec.mp3_name));
   if (!resp.ok) throw new Error("HTTP " + resp.status);
   const ab = await resp.arrayBuffer();
