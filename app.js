@@ -1,27 +1,18 @@
 "use strict";
 
 // ===========================================================================
-// Crate Digger — one serverless app, two modes (see MODE below).
-//   • AUDITIONER (desktop Chromium): digs the Internet Archive, keep/toss,
-//     saves kept records as WAVs into a chosen folder, and syncs the crate log
-//     (library.json) to GitHub — "GitHub as the sync layer".
-//   • PLAYER (phone / other browsers): reads the KEPT records from library.json
-//     and plays them back-to-back, streamed from Archive.org. Read-only.
+// Crate Digger — a serverless desktop auditioner. Digs the Internet Archive,
+// keep/toss one record at a time, and saves kept records as WAVs into a folder
+// you pick (File System Access API — desktop Chrome/Edge). The crate log lives
+// in localStorage, seeded from library.json in the repo on first load.
 // ===========================================================================
 
 // ---- config -------------------------------------------------------------
-const GH = { owner: "brawnyr", repo: "crate-digger", branch: "main", path: "library.json" };
-const LS = { token: "cd_gh_token", log: "cd_log_cache", sha: "cd_log_sha", pending: "cd_pending" };
+const LS = { log: "cd_log_cache", pending: "cd_pending" };
 
 const DEFAULT_SOURCE_KEY = "lp_soul_blues";
 
-// Two modes in one app. Desktop Chromium exposes the File System Access API,
-// which the auditioner needs to save WAVs — so it's a sound proxy for "this
-// machine can audition". Everything else (phone, Firefox, Safari) is the player.
-// index.html sets the same value on <html data-mode> before paint, for the CSS.
-const MODE = window.showDirectoryPicker ? "audition" : "play";
-
-// Same record pools as the desktop app (app.py SOURCES).
+// The record pools.
 const SOURCES = [
   { key: "lp_soul_blues", pick: "track", label: "LP Soul · Blues · Funk (warm vinyl)",
     query: 'collection:unlockedrecordings AND (subject:Soul OR subject:Blues OR subject:Funk OR subject:"Soul-Jazz" OR subject:"Rhythm and blues" OR subject:"Funk / Soul")',
@@ -59,17 +50,13 @@ const els = {
   label: $("label"), player: $("player"), ppBtn: $("ppBtn"), seek: $("seek"),
   seekFill: $("seekFill"), ptime: $("ptime"), pdur: $("pdur"), archive: $("archive"),
   keep: $("keep"), toss: $("toss"), genreSelect: $("genre-select"),
-  verdictTag: $("verdictTag"), toast: $("toast"), syncState: $("syncState"),
+  verdictTag: $("verdictTag"), toast: $("toast"),
   libCount: $("libCount"), libList: $("libList"), libEmpty: $("libEmpty"),
   asciiRecord: $("asciiRecord"), logo: $("logo"), cueing: $("cueing"),
-  gear: $("gear"), settings: $("settings"), settingsClose: $("settingsClose"),
-  tokenInput: $("tokenInput"), tokenSave: $("tokenSave"), tokenClear: $("tokenClear"),
-  sheetStatus: $("sheetStatus"),
-  folderRow: $("folderRow"), folderPick: $("folderPick"), folderStatus: $("folderStatus"),
-  skip: $("skip"),
+  folderPick: $("folderPick"), folderStatus: $("folderStatus"),
 };
 
-// ---- spinning disc (verbatim from desktop) ------------------------------
+// ---- spinning disc --------------------------------------------------------
 const D_COLS = 35, D_ROWS = 21;
 const D_CX = (D_COLS - 1) / 2, D_CY = (D_ROWS - 1) / 2;
 const D_ASPECT = 1.7, D_OUTER = D_CX;
@@ -146,7 +133,7 @@ function nameToTitle(name) {
   base = base.replace(/^\s*\d+\s*[-.)]?\s*/, "");
   return base.replace(/\s+/g, " ").trim() || name.split("/").pop();
 }
-// Must match app.py cache_name_for EXACTLY so keys line up across devices.
+// Stable per-track key — must stay format-compatible with existing library.json keys.
 function cacheNameFor(identifier, mp3Name) {
   const clean = (s) => s.replace(/[^A-Za-z0-9._-]/g, "_");
   const ident = clean(identifier).slice(0, 80);
@@ -158,12 +145,12 @@ function encPath(p) { return p.split("/").map(encodeURIComponent).join("/"); }
 function playUrlFor(identifier, mp3Name) {
   return "https://archive.org/download/" + encodeURIComponent(identifier) + "/" + encPath(mp3Name);
 }
-// mirror app.py _safe_filename so downloads land with a clean "Title - Artist.mp3"
+// clean up metadata so WAVs land with a tidy "Title - Artist.wav"
 function safeName(text) {
   text = String(text || "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "").replace(/\s+/g, " ").trim().replace(/^[.\s]+|[.\s]+$/g, "");
   return (text || "record").slice(0, 110);
 }
-// ---- Internet Archive client (ported from app.py) -----------------------
+// ---- Internet Archive client ----------------------------------------------
 async function iaJson(url) {
   const r = await fetch(url, { cache: "no-store" });
   const data = await r.json();
@@ -232,21 +219,9 @@ async function pickRandom(query, pick, tries, exclude) {
   return null;
 }
 
-// ---- crate log — stored in a GitHub repo (the sync layer) ---------------
+// ---- crate log — localStorage, seeded from library.json in the repo ------
 let LIBRARY = {};
-let LOG_SHA = null;
-let logDirty = false;        // unpushed local changes waiting to auto-commit
-let flushing = false;        // a push is currently in flight
-let flushTimer = null;       // scheduled retry timer
-let pendingMsg = "sync crate log";
 
-function token() { return (localStorage.getItem(LS.token) || "").trim(); }
-function b64encode(str) { return btoa(unescape(encodeURIComponent(str))); }
-function b64decode(b64) { return decodeURIComponent(escape(atob((b64 || "").replace(/\s/g, "")))); }
-function ghHeaders() {
-  return { "Authorization": "Bearer " + token(), "Accept": "application/vnd.github+json",
-           "X-GitHub-Api-Version": "2022-11-28" };
-}
 function logStamp(e) { return e.downloaded_at || e.listened_at || e.seen_at || 0; }
 // Union two logs; per key keep the entry that was judged/seen most recently.
 function mergeLogs(a, b) {
@@ -260,72 +235,14 @@ function saveLocal() {
 function loadLocal() {
   try { LIBRARY = JSON.parse(localStorage.getItem(LS.log) || "{}") || {}; } catch (_) { LIBRARY = {}; }
 }
-async function ghGetRemote() {
-  const url = `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${encodeURIComponent(GH.path)}?ref=${GH.branch}`;
-  const r = await fetch(url, { headers: ghHeaders(), cache: "no-store" });
-  if (!r.ok) { let d = ""; try { d = (await r.json()).message || ""; } catch (_) {} throw new Error("read " + r.status + (d ? " — " + d : "")); }
-  const j = await r.json();
-  LOG_SHA = j.sha;
-  const text = b64decode(j.content);
-  return text ? JSON.parse(text) : {};
-}
-async function ghPutRemote(obj, message) {
-  const url = `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${encodeURIComponent(GH.path)}`;
-  const send = (sha) => fetch(url, {
-    method: "PUT", headers: Object.assign({ "Content-Type": "application/json" }, ghHeaders()),
-    body: JSON.stringify({ message, branch: GH.branch, content: b64encode(JSON.stringify(obj, null, 1)), sha }),
-  });
-  let r = await send(LOG_SHA || undefined);
-  if (r.status === 409 || r.status === 422) {          // someone else wrote — merge & retry
-    const remote = await ghGetRemote();
-    obj = mergeLogs(remote, obj); LIBRARY = obj;
-    r = await send(LOG_SHA || undefined);
-  }
-  if (!r.ok) { let d = ""; try { d = (await r.json()).message || ""; } catch (_) {} throw new Error("write " + r.status + (d ? " — " + d : "")); }
-  const j = await r.json();
-  LOG_SHA = j.content && j.content.sha;
-}
-// Pull the shared log on boot (authed = fresh; else public read of the repo file).
+// Merge in library.json (the log this repo shipped with) so history survives a
+// cleared browser profile; from then on localStorage is the source of truth.
 async function loadLog() {
   loadLocal();
   try {
-    let remote = null;
-    if (token()) remote = await ghGetRemote();
-    else { const r = await fetch("./library.json?ts=" + Date.now(), { cache: "no-store" }); if (r.ok) remote = await r.json(); }
-    if (remote) {
-      const merged = mergeLogs(remote, LIBRARY);
-      const localHadExtra = JSON.stringify(merged) !== JSON.stringify(remote);
-      LIBRARY = merged; saveLocal();
-      if (localHadExtra) { logDirty = true; pendingMsg = "sync offline changes"; await flushLog(); }
-    }
+    const r = await fetch("./library.json?ts=" + Date.now(), { cache: "no-store" });
+    if (r.ok) { LIBRARY = mergeLogs(await r.json(), LIBRARY); saveLocal(); }
   } catch (_) { /* offline — run on the local cache */ }
-  updateSyncState();
-}
-// Any change marks the log dirty and auto-commits it, retrying until it sticks —
-// so every keep/toss lands on GitHub with no manual step.
-async function persistLog(message) {
-  pendingMsg = message || pendingMsg;
-  logDirty = true;
-  saveLocal();
-  await flushLog();
-}
-async function flushLog() {
-  if (!token()) { updateSyncState(); return; }
-  if (!logDirty) { updateSyncState(true); return; }
-  if (flushing) return;
-  flushing = true;
-  updateSyncState();
-  try {
-    await ghPutRemote(LIBRARY, pendingMsg);
-    logDirty = false;
-    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
-    updateSyncState(true);
-  } catch (e) {
-    updateSyncState(false, e.message);
-    if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; flushLog(); }, 12000);
-  } finally {
-    flushing = false;
-  }
 }
 
 function libEntryFrom(rec, sourceKey) {
@@ -360,7 +277,7 @@ function libList(filt) {
   items.sort((a, b) => (b.seen_at || 0) - (a.seen_at || 0));
   return items;
 }
-// upsert + mark, mirroring app.py lib_mark (kept/tossed are opposites)
+// upsert + mark (kept/tossed are opposites)
 function markVerdict(rec, sourceKey, kind) {
   const key = rec.cache_name || rec.key;
   if (!key) return;
@@ -374,7 +291,7 @@ function entryToRecord(e) {
   return Object.assign({}, e, { key: e.cache_name, play_url: playUrlFor(e.identifier, e.mp3_name) });
 }
 
-// ---- audio player (from desktop) ----------------------------------------
+// ---- audio player ---------------------------------------------------------
 let currentRecord = null, busy = false;
 let toastTimer = null;
 function toast(msg, kind) {
@@ -389,7 +306,6 @@ function setBusy(state, msg) {
   busy = state;
   els.keep.disabled = state || !currentRecord;
   els.toss.disabled = state || !currentRecord;
-  els.skip.disabled = state;
   els.genreSelect.disabled = state;
   if (state && msg) toast(msg, "busy");
 }
@@ -416,11 +332,6 @@ els.ppBtn.addEventListener("click", () => {
 els.player.addEventListener("play", () => { els.ppBtn.textContent = "⏸"; els.ppBtn.setAttribute("aria-label", "Pause"); });
 els.player.addEventListener("pause", () => { els.ppBtn.textContent = "▶"; els.ppBtn.setAttribute("aria-label", "Play"); });
 els.player.addEventListener("ended", () => { els.ppBtn.textContent = "▶"; els.ppBtn.setAttribute("aria-label", "Play"); });
-// A failure *after* playback has begun (loadAudio owns load-time errors; by now busy is false).
-els.player.addEventListener("error", () => {
-  if (busy || !currentRecord) return;
-  if (MODE === "play") { toast("⚠️ Playback dropped — skipping…", "err"); setTimeout(() => { if (!busy) playKept(); }, 600); }
-});
 els.player.addEventListener("loadstart", () => {
   els.seekFill.style.width = "0%"; els.ptime.textContent = "0:00"; els.pdur.textContent = "0:00";
 });
@@ -472,7 +383,6 @@ function loadAudio(url, timeoutMs) {
 }
 
 // ---- crate dropdown -----------------------------------------------------
-function baseSourceLabel(key) { const s = SOURCES.find((x) => x.key === key); return s ? s.label : key; }
 function renderSourceOptions() {
   const prev = els.genreSelect.value;
   const judged = libJudgedBySource();
@@ -572,8 +482,8 @@ async function keep() {
   updateStateChips(rec);
   clearPending();
   renderLibrary();
-  let note = token() ? "synced to your crate log." : "saved on this device.";
-  if (sampleDir) {                              // desktop: write a WAV into the sample folder
+  let note = "logged on this device.";
+  if (sampleDir) {                              // write a WAV into the sample folder
     try {
       setBusy(true, "💾 Converting to WAV → your sample folder…");
       const fn = await saveWavToFolder(rec);
@@ -582,7 +492,7 @@ async function keep() {
       note = "⚠ WAV save failed: " + e.message;
     }
   }
-  await persistLog("keep: " + (rec.title || rec.cache_name));
+  saveLocal();
   renderSourceOptions();
   toast("✅ Kept — " + note, note[0] === "⚠" ? "err" : "ok");
   setBusy(false);
@@ -596,15 +506,12 @@ els.toss.addEventListener("click", async () => {
   markVerdict(currentRecord, currentRecord.source, "toss");
   clearPending();
   renderLibrary();
-  await persistLog("toss: " + (currentRecord.title || currentRecord.cache_name));
+  saveLocal();
   renderSourceOptions();
   spin();
 });
 els.keep.addEventListener("click", keep);
-els.genreSelect.addEventListener("change", () => {
-  clearToast();
-  if (MODE === "play") { buildPlaylist(); playKept(); } else spin(true);
-});
+els.genreSelect.addEventListener("change", () => { clearToast(); spin(true); });
 
 // ---- crate log render ---------------------------------------------------
 let libFilter = "all";
@@ -656,73 +563,7 @@ document.querySelectorAll(".lib-tab").forEach((t) => {
   });
 });
 
-// ---- sync status + settings sheet ---------------------------------------
-function updateSyncState(ok, err) {
-  let txt;
-  if (!token()) txt = "local only · tap ⚙ to sync";
-  else if (ok === false) txt = "⚠ retrying sync… (" + (err || "offline") + ")";
-  else if (logDirty || flushing) txt = "⏳ saving…";
-  else txt = "✓ synced to GitHub";
-  els.syncState.textContent = txt;
-}
-const appRoot = document.querySelector(".app");
-let sheetPrevFocus = null;
-// Keep Tab inside the open sheet, and close on Escape.
-function sheetKeydown(e) {
-  if (e.key === "Escape") { e.preventDefault(); closeSheet(); return; }
-  if (e.key !== "Tab") return;
-  const focusable = els.settings.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
-  const list = Array.prototype.filter.call(focusable, (el) => !el.disabled && el.offsetParent !== null);
-  if (!list.length) return;
-  const first = list[0], last = list[list.length - 1];
-  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-}
-function openSheet() {
-  sheetPrevFocus = document.activeElement;
-  els.tokenInput.value = token();
-  els.sheetStatus.textContent = token() ? "Token saved on this device." : "";
-  if (window.showDirectoryPicker) { els.folderRow.classList.remove("hidden"); updateFolderStatus(); }
-  els.settings.classList.remove("hidden");
-  els.settings.setAttribute("aria-hidden", "false");
-  if (appRoot) appRoot.inert = true;                 // rest of the page can't be reached
-  els.settings.addEventListener("keydown", sheetKeydown);
-  setTimeout(() => els.tokenInput.focus(), 30);
-}
-function closeSheet() {
-  els.settings.classList.add("hidden");
-  els.settings.setAttribute("aria-hidden", "true");
-  els.settings.removeEventListener("keydown", sheetKeydown);
-  if (appRoot) appRoot.inert = false;
-  if (sheetPrevFocus && sheetPrevFocus.focus) sheetPrevFocus.focus();
-}
-els.gear.addEventListener("click", openSheet);
-els.settingsClose.addEventListener("click", closeSheet);
-els.settings.addEventListener("click", (e) => { if (e.target === els.settings) closeSheet(); });
-els.tokenSave.addEventListener("click", async () => {
-  const v = els.tokenInput.value.trim();
-  if (!v) { els.sheetStatus.textContent = "Paste a token first."; return; }
-  localStorage.setItem(LS.token, v);
-  els.sheetStatus.textContent = "Checking token…";
-  try {
-    const remote = await ghGetRemote();
-    LIBRARY = mergeLogs(remote, LIBRARY); saveLocal();
-    await ghPutRemote(LIBRARY, "sync from phone");
-    logDirty = false;
-    renderLibrary(); renderSourceOptions(); updateSyncState(true);
-    els.sheetStatus.textContent = "✓ Connected — your log is syncing.";
-  } catch (e) {
-    updateSyncState(false, e.message);
-    els.sheetStatus.textContent = "⚠ Couldn't connect: " + e.message + ". Check the token's repo + Contents permission.";
-  }
-});
-els.tokenClear.addEventListener("click", () => {
-  localStorage.removeItem(LS.token); LOG_SHA = null;
-  els.tokenInput.value = ""; els.sheetStatus.textContent = "Token cleared — this device is local-only now.";
-  updateSyncState();
-});
-
-// ---- desktop: Keep saves a WAV into a chosen folder (File System Access API) --
+// ---- Keep saves a WAV into a chosen folder (File System Access API) ------
 // Browsers can't touch the disk freely, but desktop Chrome/Edge can write into a
 // folder the user grants once. We remember the folder handle in IndexedDB, decode
 // the MP3 with Web Audio, and write a real WAV — the same result as the old server.
@@ -753,9 +594,7 @@ async function idbSet(key, val) {
 }
 function updateFolderStatus() {
   if (!els.folderStatus) return;
-  els.folderStatus.textContent = sampleDir
-    ? "✓ Keep saves a WAV into: " + sampleFolderName
-    : "Not set — Keep just logs the record on this device.";
+  els.folderStatus.textContent = sampleDir ? sampleFolderName : "no folder set";
 }
 async function chooseSampleFolder() {
   try {
@@ -766,7 +605,11 @@ async function chooseSampleFolder() {
   } catch (_) { /* user cancelled the picker */ }
 }
 async function restoreSampleFolder() {
-  if (!window.showDirectoryPicker) return;      // mobile / unsupported browser
+  if (!window.showDirectoryPicker) {            // unsupported browser (Firefox/Safari)
+    els.folderPick.classList.add("hidden");
+    els.folderStatus.textContent = "needs desktop Chrome/Edge";
+    return;
+  }
   try {
     const dir = await idbGet("sampleDir");
     if (dir) { sampleDir = dir; sampleFolderName = dir.name || "your folder"; }
@@ -820,113 +663,7 @@ async function saveWavToFolder(rec) {
 }
 els.folderPick.addEventListener("click", chooseSampleFolder);
 
-// Auto-commit safety net: keep retrying any pending change until it's on GitHub.
-window.addEventListener("online", () => flushLog());
-document.addEventListener("visibilitychange", () => { if (!document.hidden) flushLog(); });
-setInterval(() => { if (logDirty) flushLog(); }, 15000);
-
-// ===========================================================================
-// PLAYER MODE (phone / non-Chromium) — read the KEPT crate from library.json
-// and play it back-to-back. No dig, no keep/toss, no token: library.json is
-// read-only input here, written by the desktop auditioner.
-// ===========================================================================
-let KEPT = [], playlist = [], pos = -1, keptFails = 0;
-function isKept(e) {
-  return e && e.identifier && e.mp3_name &&
-    (e.downloaded === true || (Array.isArray(e.kept_files) && e.kept_files.length > 0));
-}
-async function loadKept() {
-  const r = await fetch("./library.json", { cache: "no-store" });
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  const raw = await r.json();
-  const entries = Array.isArray(raw) ? raw : Object.values(raw);
-  KEPT = entries.filter(isKept).map((e) => ({
-    title: e.title || "(untitled)", creator: e.creator || "Unknown artist",
-    year: String(e.year || e.date || "").split("-")[0], genre: e.genre || "",
-    album: e.album || "", label: e.label || "", source: e.source || "",
-    archive_url: e.archive_url || ("https://archive.org/details/" + e.identifier),
-    play_url: playUrlFor(e.identifier, e.mp3_name),
-  }));
-}
-// crate dropdown = "All kept" + one option per source crate present in the kept set
-function loadKeptSources() {
-  const present = [...new Set(KEPT.map((e) => e.source).filter(Boolean))];
-  const opts = ['<option value="">🎧 All kept — shuffle</option>'];
-  for (const s of present) opts.push(`<option value="${esc(s)}">${esc(baseSourceLabel(s))}</option>`);
-  els.genreSelect.innerHTML = opts.join("");
-  els.genreSelect.value = "";
-}
-function buildPlaylist() {
-  const f = els.genreSelect.value;
-  playlist = shuffle(f ? KEPT.filter((e) => e.source === f) : KEPT.slice());
-  pos = -1;
-}
-function nextKept() { if (!playlist.length) return null; pos = (pos + 1) % playlist.length; return playlist[pos]; }
-async function presentKept(rec) {
-  currentRecord = rec;
-  els.title.textContent = rec.title || "(untitled)";
-  els.artist.textContent = rec.creator || "Unknown artist";
-  els.year.textContent = rec.year || "";
-  els.genre.textContent = rec.genre || "";
-  els.label.textContent = rec.album ? "💿 " + rec.album : (rec.label ? "Label: " + rec.label : "");
-  els.archive.href = rec.archive_url || "#";
-  setLoading(true);
-  const ready = await loadAudio(rec.play_url);
-  if (currentRecord !== rec) return;
-  setLoading(false);
-  els.placeholder.classList.add("hidden");
-  els.card.classList.remove("hidden", "in");
-  void els.card.offsetWidth;
-  els.card.classList.add("in");
-  if (!ready) {
-    // Give up after a few dead tracks in a row instead of looping the playlist forever.
-    keptFails++;
-    if (keptFails >= Math.min(4, Math.max(1, playlist.length))) {
-      keptFails = 0;
-      toast("⚠️ Can't reach the Archive right now — check your connection, then tap ⏭.", "err");
-      return;
-    }
-    toast("⚠️ Couldn't load that one — skipping…", "err");
-    setTimeout(() => { if (!busy) playKept(); }, 900);
-    return;
-  }
-  keptFails = 0;
-  els.player.play().catch(() => {});
-}
-async function playKept() {
-  if (busy) return;
-  const rec = nextKept();
-  if (!rec) { setLoading(false); showEmptyKept(); return; }
-  setBusy(true);
-  els.player.pause();
-  try { clearToast(); await presentKept(rec); }
-  catch (e) { toast("⚠️ " + e.message + " — tap ⏭ for the next one.", "err"); }
-  finally { setBusy(false); }
-}
-function showEmptyKept() {
-  els.placeholder.innerHTML =
-    '<span class="ph-lead">◇ Your crate is empty</span>' +
-    '<span class="ph-sub">keep some records on the desktop — they\'ll play here</span>';
-  els.placeholder.classList.remove("hidden");
-  els.card.classList.add("hidden");
-}
-els.skip.addEventListener("click", () => { clearToast(); keptFails = 0; playKept(); });
-// player is radio-style: when a track ends, roll straight into the next kept one
-els.player.addEventListener("ended", () => { if (MODE === "play" && !busy) playKept(); });
-
-// mode-specific tagline + footer copy (elements exist in both modes)
-function setModeText() {
-  const t = $("tagline"), f = $("footHint");
-  if (MODE === "play") {
-    if (t) t.textContent = "// your kept crate — the good ones you saved, on the go";
-    if (f) f.textContent = "🎧 Your kept records, streamed from the Internet Archive · tap ⏭ for the next";
-  } else {
-    if (t) t.textContent = "// dig the crate — keep it or toss it, one record at a time";
-    if (f) f.textContent = "🎧 Digging the Internet Archive · Keep saves a WAV + syncs your crate log";
-  }
-}
-
-// ---- startup wordmark reel (from desktop) -------------------------------
+// ---- startup wordmark reel ------------------------------------------------
 const LOGO_GLYPHS = "▚▞▜▙▛▟▖▗▘▝░▒▓#%*+=";
 function animateLogo() {
   return new Promise((resolve) => {
@@ -968,15 +705,17 @@ function armAutoplayUnlock() {
   window.addEventListener("keydown", go);
 }
 
+// dig / keep / toss, re-cueing whatever was pending last time
 async function boot() {
-  if ("serviceWorker" in navigator) { try { navigator.serviceWorker.register("./sw.js"); } catch (_) {} }
+  // The old PWA build registered a service worker that caches the app shell —
+  // unregister it (and drop its caches) so returning visitors get this version.
+  if ("serviceWorker" in navigator) {
+    try {
+      navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
+      if (window.caches) caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
+    } catch (_) {}
+  }
   armAutoplayUnlock();
-  setModeText();
-  if (MODE === "play") return bootPlayer();
-  return bootAuditioner();
-}
-// desktop: dig / keep / toss / sync, re-cueing whatever was pending last time
-async function bootAuditioner() {
   await loadLog();
   renderLibrary();
   restoreSampleFolder();      // reconnect the sample folder if one was picked
@@ -986,17 +725,5 @@ async function bootAuditioner() {
   try { pending = JSON.parse(localStorage.getItem(LS.pending) || "null"); } catch (_) {}
   if (pending && pending.play_url) await presentRecord(pending);
   else spin();
-}
-// phone: read the kept crate and play it (read-only; no token, no dig)
-async function bootPlayer() {
-  let err = null;
-  try { await loadKept(); } catch (e) { err = e; }
-  if (!err) loadKeptSources();
-  await animateLogo();
-  setLoading(false);
-  if (err) { toast("⚠️ Couldn't load your crate: " + err.message, "err"); showEmptyKept(); return; }
-  if (!KEPT.length) { showEmptyKept(); return; }
-  buildPlaylist();
-  playKept();
 }
 boot();

@@ -169,7 +169,6 @@ header { text-align: center; margin-bottom: 30px; }
   .card.in { animation: none; }
   .cueing, .record.loading .ascii-record { animation: none; }
   .count { animation: none; }
-  .sheet-card { animation: none; }
 }
 
 /* ---------------- info / record card ---------------- */
@@ -256,13 +255,6 @@ audio#player { display: none; }
 
 .archive-link { color: var(--muted-dim); font-size: 0.8rem; font-weight: 500; text-decoration: none; }
 .archive-link:hover { color: var(--rose); }
-
-/* full-stage "stopped" notice shown after Shift+Q terminates the server */
-.stopped {
-  text-align: center; color: var(--body);
-  font-size: 1rem; line-height: 1.7; padding: 8px 0;
-}
-.stopped strong { color: var(--rose); }
 
 /* ---------------- the disc IS the loader (cueing caption + whir) ---------------- */
 .cueing {
@@ -469,29 +461,7 @@ code {
   .verdict .btn { flex: 1 1 auto; justify-content: center; padding: 0 14px; }
 }
 
-/* ==========================================================================
-   Mobile / PWA additions (crate-digger-mobile)
-   ========================================================================== */
-/* respect notches / home indicator when installed full-screen */
-.app { padding-top: max(40px, env(safe-area-inset-top));
-       padding-bottom: max(72px, calc(env(safe-area-inset-bottom) + 40px));
-       padding-left: max(24px, env(safe-area-inset-left));
-       padding-right: max(24px, env(safe-area-inset-right)); }
-
-header { position: relative; }
-.gear {
-  position: absolute; top: 0; right: 0;
-  width: 44px; height: 44px; border-radius: 50%;
-  border: 1px solid var(--glass-line); background: rgba(20, 11, 5, 0.45);
-  color: var(--latte); font-size: 1.05rem; cursor: pointer;
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  display: grid; place-items: center; line-height: 1;
-  transition: transform 0.3s ease, color 0.15s ease, border-color 0.15s ease;
-}
-.gear:hover { color: var(--rose); border-color: rgba(247, 236, 210, 0.35); }
-.gear:active { transform: rotate(60deg); }
-
-/* tap-to-play affordance on crate-log rows */
+/* click-to-play affordance on crate-log rows */
 .lib-list li { cursor: pointer; }
 .lib-play {
   flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%;
@@ -502,86 +472,17 @@ header { position: relative; }
 .lib-list li:hover .lib-play { color: var(--rose); border-color: rgba(238, 147, 187, 0.5); }
 .lib-list li:active { opacity: 0.75; }
 
-/* ---------------- settings / sync bottom-sheet ---------------- */
-.sheet {
-  position: fixed; inset: 0; z-index: 40;
-  background: rgba(8, 4, 2, 0.6);
-  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
-  display: flex; align-items: flex-end; justify-content: center;
-}
-.sheet.hidden { display: none; }
-.sheet-card {
-  width: 100%; max-width: 520px;
-  background: rgba(28, 18, 10, 0.92);
-  border: 1px solid var(--glass-line);
-  border-radius: var(--r-xl) var(--r-xl) 0 0;
-  padding: 22px 22px max(22px, calc(env(safe-area-inset-bottom) + 16px));
-  box-shadow: 0 -18px 60px rgba(0, 0, 0, 0.55);
-  animation: sheetUp 0.28s cubic-bezier(.2,.8,.2,1) both;
-}
-@keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
-@media (min-width: 560px) { .sheet { align-items: center; } .sheet-card { border-radius: var(--r-xl); } }
-
-.sheet-head { display: flex; align-items: center; justify-content: space-between; }
-.sheet-head h3 { margin: 0; color: var(--ink); font-size: 1rem; }
-.sheet-x {
-  width: 40px; height: 40px; border-radius: 50%; cursor: pointer;
-  border: 1px solid var(--glass-line); background: rgba(20, 11, 5, 0.5);
-  color: var(--muted); font-size: 0.9rem;
-}
-.sheet-x:hover { color: var(--rose); }
-.sheet-sub { color: var(--body); font-size: 0.84rem; line-height: 1.55; margin: 12px 0 16px; }
-.sheet-sub strong { color: var(--latte); }
-.sheet-label { display: block; color: var(--muted); font-size: 0.76rem; margin-bottom: 6px; }
-.sheet-input {
-  width: 100%; padding: 12px 13px; border-radius: var(--r-sm);
-  background: rgba(12, 7, 3, 0.7); color: var(--ink);
-  border: 1px solid var(--glass-line); font-family: var(--mono); font-size: 0.9rem;
-}
-.sheet-input:focus { outline: none; border-color: var(--rose); box-shadow: 0 0 0 1px rgba(238, 147, 187, 0.5); }
-.sheet-actions { display: flex; gap: 10px; margin: 14px 0 6px; }
-.sheet-actions .btn { flex: 1 1 auto; justify-content: center; height: 46px; }
-.sheet-status { color: var(--muted); font-size: 0.8rem; min-height: 1.2em; margin: 6px 0 0; }
-.sheet-help { margin-top: 14px; color: var(--muted-dim); font-size: 0.8rem; }
-.sheet-help summary { cursor: pointer; color: var(--latte); }
-.sheet-help ol { margin: 10px 0 0; padding-left: 20px; line-height: 1.7; }
-.sheet-help code { font-size: 0.76rem; }
-
-/* larger touch targets on phones */
-@media (max-width: 620px) {
-  .verdict .btn { height: 58px; font-size: 1rem; }
-  .pp { width: 44px; height: 44px; }
-  .seek { height: 14px; }
-  .lib-list li { padding: 13px 0; }
-}
-
 /* ---------------- card actions (Archive.org link) ---------------- */
 .card-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
 
-/* ---------------- desktop sample-folder row in settings ---------------- */
-.sheet-folder.hidden { display: none; }
-.sheet-sep { border: none; border-top: 1px solid var(--glass-line); margin: 18px 0 14px; }
-
-/* ==========================================================================
-   Unified modes — desktop = auditioner, phone = player. The mode is set on
-   <html data-mode> before first paint (inline script in index.html), so the
-   controls for the other mode never flash. Auditioner: keep/toss, gear,
-   library log, download, settings. Player: the ⏭ Next-record button.
-   ========================================================================== */
-html[data-mode="play"] .audition-only { display: none !important; }
-html[data-mode="audition"] .play-only { display: none !important; }
-
-/* phone player: the ⏭ Next-record button (mirrors the verdict buttons' weight) */
-.controls { display: flex; justify-content: center; margin: 18px 0 6px; }
-.btn.skip {
-  height: 54px; padding: 0 26px; font-size: 0.95rem; border-radius: var(--r-lg); font-weight: 700;
-  background: linear-gradient(135deg, rgba(238, 147, 187, 0.95), rgba(201, 143, 84, 0.9));
-  color: #2a0f1c; border-color: rgba(247, 236, 210, 0.4);
+/* ---------------- sample-folder picker (crate-log footer) ---------------- */
+.folder-btn {
+  font-family: var(--mono); font-size: 0.74rem; font-weight: 600; cursor: pointer;
+  padding: 4px 11px; margin-left: 6px; border-radius: var(--pill);
+  border: 1px solid var(--glass-line); background: rgba(20, 11, 5, 0.3);
+  color: var(--muted);
+  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
 }
-.btn.skip:hover:not(:disabled) {
-  color: #2a0f1c; box-shadow: 0 10px 30px rgba(238, 147, 187, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-}
-@media (max-width: 620px) {
-  .controls { width: 100%; }
-  .controls .btn { flex: 1 1 auto; justify-content: center; height: 58px; font-size: 1rem; }
-}
+.folder-btn:hover { color: var(--cream); border-color: rgba(247, 236, 210, 0.3); }
+.folder-btn:focus-visible { outline: 2px solid var(--rose); outline-offset: 2px; }
+.folder-btn.hidden { display: none; }
