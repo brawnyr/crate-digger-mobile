@@ -168,10 +168,10 @@ header { text-align: center; margin-bottom: 30px; }
   25%  { filter: drop-shadow(0 0 34px rgba(238, 147, 187, 0.95)) brightness(1.6) saturate(1.5); }
   100% { filter: drop-shadow(0 0 10px rgba(238, 147, 187, 0.28)); }
 }
-.ascii-record.fx-toss { animation: discToss 0.9s ease-in; }
+.ascii-record.fx-toss { animation: discToss 1.5s ease-in-out; }
 @keyframes discToss {
   0%   { filter: drop-shadow(0 0 10px rgba(238, 147, 187, 0.28)); }
-  55%  { filter: drop-shadow(0 0 4px rgba(60, 40, 36, 0.6)) saturate(0.15) brightness(0.6); }
+  50%  { filter: drop-shadow(0 0 4px rgba(60, 40, 36, 0.6)) saturate(0.15) brightness(0.6); }
   100% { filter: drop-shadow(0 0 10px rgba(238, 147, 187, 0.28)); }
 }
 
@@ -192,6 +192,10 @@ header { text-align: center; margin-bottom: 30px; }
 .ph-lead { color: var(--cream); font-weight: 600; }
 .ph-sub { color: var(--muted-dim); font-size: 0.82rem; }
 .card.hidden, .placeholder.hidden, .toast.hidden, .cueing.hidden { display: none; }
+
+/* while the next record cues, the outgoing one recedes into the haze */
+.card.stale { opacity: 0.4; filter: saturate(0.5); pointer-events: none; }
+.card { transition: opacity 0.3s ease, filter 0.3s ease; }
 
 /* each new record rises and focuses in out of the haze (set fresh every spin) */
 .card.in { animation: cardIn 0.85s cubic-bezier(.2,.8,.2,1) both; }

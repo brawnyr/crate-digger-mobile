@@ -68,21 +68,22 @@ function smoothstep(a, b, x) {
   return t * t * (3 - 2 * t);
 }
 // The verdict plays out on the disc itself: keep sends a ring of light racing
-// outward; toss crumbles the disc to dust. CSS handles the color wash (fx-*).
-let discFx = null, discFxT0 = 0;
-const DISC_FX_MS = 900;
+// outward; toss crumbles the disc to dust and breathes it back together.
+// CSS handles the color wash (fx-*).
+let discFx = null, discFxT0 = 0, discFxMs = 0;
 function discEffect(kind) {
+  const ms = kind === "toss" ? 1500 : 900;
   els.asciiRecord.classList.remove("fx-keep", "fx-toss");
   void els.asciiRecord.offsetWidth;
   els.asciiRecord.classList.add("fx-" + kind);
-  setTimeout(() => els.asciiRecord.classList.remove("fx-" + kind), DISC_FX_MS);
+  setTimeout(() => els.asciiRecord.classList.remove("fx-" + kind), ms);
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;  // still disc — skip the shape pass
-  discFx = kind; discFxT0 = performance.now();
+  discFx = kind; discFxT0 = performance.now(); discFxMs = ms;
 }
 function renderDisc(phase) {
   let fxK = 0;
   if (discFx) {
-    fxK = (performance.now() - discFxT0) / DISC_FX_MS;
+    fxK = (performance.now() - discFxT0) / discFxMs;
     if (fxK >= 1) { discFx = null; fxK = 0; }
   }
   let out = "";
@@ -103,9 +104,10 @@ function renderDisc(phase) {
         n = Math.min(1, n + ring * ring);
       }
       let ch = D_RAMP[Math.round(n * (D_RAMP.length - 1))];
-      if (discFx === "toss") {           // crumble: cells blow away as dust
+      if (discFx === "toss") {           // crumble to dust, then breathe back together
+        const d = Math.sin(Math.PI * fxK);        // 0 → 1 → 0, no hard stop
         const h = Math.abs(Math.sin(x * 127.1 + y * 311.7) * 43758.5453) % 1;
-        if (h < fxK * 1.15) ch = h < fxK * 0.6 ? " " : "·";
+        if (h < d * 1.15) ch = h < d * 0.6 ? " " : "·";
       }
       out += ch;
     }
@@ -433,8 +435,15 @@ function updateStateChips(rec) {
 function savePending(rec) { try { localStorage.setItem(LS.pending, JSON.stringify(rec)); } catch (_) {} }
 function clearPending() { try { localStorage.removeItem(LS.pending); } catch (_) {} }
 
+// Nothing on the card changes until the audio is actually playable — the new
+// title appearing IS the "ready" signal, so play always works the moment you see it.
 async function presentRecord(rec) {
   currentRecord = rec;
+  els.card.classList.add("stale");        // outgoing record dims while the next one cues
+  setLoading(true);
+  const ready = await loadAudio(rec.play_url);
+  if (currentRecord !== rec) return;
+  setLoading(false);
   els.title.textContent = rec.title || "(untitled)";
   els.artist.textContent = rec.creator || "Unknown artist";
   els.year.textContent = rec.year || "";
@@ -444,13 +453,8 @@ async function presentRecord(rec) {
   // reflect any existing verdict from the log
   const logged = LIBRARY[rec.cache_name];
   updateStateChips(logged || rec);
-
-  setLoading(true);
-  const ready = await loadAudio(rec.play_url);
-  if (currentRecord !== rec) return;
-  setLoading(false);
   els.placeholder.classList.add("hidden");
-  els.card.classList.remove("hidden", "in");
+  els.card.classList.remove("hidden", "in", "stale");
   void els.card.offsetWidth;
   els.card.classList.add("in");
   if (!ready) { toast("⚠️ Couldn't load that record — toss it to move on.", "err"); return; }
@@ -464,6 +468,7 @@ async function spin() {
   spinQueued = false;
   setBusy(true);
   setLoading(true, "🪩 digging through the crate…");
+  els.card.classList.add("stale");        // the old record fades back while we dig
   els.player.pause();
   try {
     const src = SOURCES.find((s) => s.key === els.genreSelect.value) || SOURCES.find((s) => s.key === DEFAULT_SOURCE_KEY);
@@ -484,6 +489,7 @@ async function spin() {
   } catch (e) {
     toast("⚠️ " + e.message + " — try switching crates.", "err");
   } finally {
+    els.card.classList.remove("stale");
     setLoading(false); setBusy(false);
     if (spinQueued) spin();   // crate changed mid-dig — dig the new crate now
   }
