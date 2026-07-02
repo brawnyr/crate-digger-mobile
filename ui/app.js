@@ -67,12 +67,13 @@ function smoothstep(a, b, x) {
   const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
 }
-// The verdict plays out on the disc itself: keep sends a ring of light racing
-// outward; toss crumbles the disc to dust and breathes it back together.
+// The verdict plays out on the disc itself, both on the same sine breath —
+// keep: a ring of light sweeps out to the rim, then gathers back into the
+// spindle; toss: the disc crumbles to dust and breathes back together.
 // CSS handles the color wash (fx-*).
 let discFx = null, discFxT0 = 0, discFxMs = 0;
 function discEffect(kind) {
-  const ms = kind === "toss" ? 1500 : 900;
+  const ms = 1500;
   els.asciiRecord.classList.remove("fx-keep", "fx-toss");
   void els.asciiRecord.offsetWidth;
   els.asciiRecord.classList.add("fx-" + kind);
@@ -99,8 +100,9 @@ function renderDisc(phase) {
       const surface = 0.12 * (0.5 + 0.5 * Math.sin(r * 2.3));
       let n = Math.max(arm, surface) * smoothstep(D_OUTER + 0.4, D_OUTER - 3.2, r);
       n = n < 0 ? 0 : n > 1 ? 1 : n;
-      if (discFx === "keep") {           // ring of light racing outward
-        const ring = 1 - Math.min(1, Math.abs(r - fxK * (D_OUTER + 2)) / 2.4);
+      if (discFx === "keep") {           // light sweeps out to the rim, then gathers back in
+        const pos = Math.sin(Math.PI * fxK) * (D_OUTER + 2);
+        const ring = 1 - Math.min(1, Math.abs(r - pos) / 2.4);
         n = Math.min(1, n + ring * ring);
       }
       let ch = D_RAMP[Math.round(n * (D_RAMP.length - 1))];

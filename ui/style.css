@@ -162,10 +162,10 @@ header { text-align: center; margin-bottom: 30px; }
 
 /* a verdict washes over the disc: keep = warm bloom, toss = ashen fade
    (paired with the shape pass in renderDisc — light ring out / crumble to dust) */
-.ascii-record.fx-keep { animation: discKeep 0.9s ease-out; }
+.ascii-record.fx-keep { animation: discKeep 1.5s ease-in-out; }
 @keyframes discKeep {
   0%   { filter: drop-shadow(0 0 10px rgba(238, 147, 187, 0.28)); }
-  25%  { filter: drop-shadow(0 0 34px rgba(238, 147, 187, 0.95)) brightness(1.6) saturate(1.5); }
+  50%  { filter: drop-shadow(0 0 34px rgba(238, 147, 187, 0.95)) brightness(1.6) saturate(1.5); }
   100% { filter: drop-shadow(0 0 10px rgba(238, 147, 187, 0.28)); }
 }
 .ascii-record.fx-toss { animation: discToss 1.5s ease-in-out; }
