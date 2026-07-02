@@ -3,10 +3,6 @@ name = "crate-digger"
 version = "1.0.0"
 edition = "2021"
 
-[lib]
-name = "crate_digger_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
-
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

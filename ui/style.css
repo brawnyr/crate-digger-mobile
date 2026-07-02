@@ -438,17 +438,6 @@ code {
   text-shadow: 0 1px 8px rgba(20, 11, 5, 0.5);
 }
 
-/* ---------------- responsive ---------------- */
-@media (max-width: 620px) {
-  .app { padding: 28px 16px 56px; }
-  .stage { flex-direction: column; text-align: center; padding: 24px; }
-  .meta { justify-content: center; }
-  .digbar { flex-direction: column; align-items: stretch; gap: 10px; }
-  .genre { width: 100%; justify-content: center; }
-  .verdict { gap: 10px; }
-  .verdict .btn { flex: 1 1 auto; justify-content: center; padding: 0 14px; }
-}
-
 /* click-to-play affordance on crate-log rows */
 .lib-list li { cursor: pointer; }
 .lib-play {
@@ -473,4 +462,3 @@ code {
 }
 .folder-btn:hover { color: var(--cream); border-color: rgba(247, 236, 210, 0.3); }
 .folder-btn:focus-visible { outline: 2px solid var(--rose); outline-offset: 2px; }
-.folder-btn.hidden { display: none; }

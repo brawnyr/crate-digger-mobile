@@ -136,7 +136,7 @@ function nameToTitle(name) {
   base = base.replace(/^\s*\d+\s*[-.)]?\s*/, "");
   return base.replace(/\s+/g, " ").trim() || name.split("/").pop();
 }
-// Stable per-track key — must stay format-compatible with existing library.json keys.
+// Stable per-track key — must stay format-compatible with existing crate-log.json keys.
 function cacheNameFor(identifier, mp3Name) {
   const clean = (s) => s.replace(/[^A-Za-z0-9._-]/g, "_");
   const ident = clean(identifier).slice(0, 80);
@@ -155,8 +155,9 @@ function safeName(text) {
 }
 // ---- Internet Archive client ----------------------------------------------
 async function iaJson(url) {
+  // the Rust side owns the user-facing message ("Internet Archive is busy…")
   try { return await invoke("ia_json", { url }); }
-  catch (_) { throw new Error("Internet Archive is busy — try again in a moment."); }
+  catch (e) { throw new Error(String(e)); }
 }
 const _numCache = new Map();
 async function numFound(query) {
@@ -453,7 +454,8 @@ async function spin() {
       throw new Error("Couldn't dig up a record.");
     }
     info.source = src.key;
-    clearToast();
+    // only clear a lingering busy toast — keep()'s result toast must survive the auto-spin
+    if (els.toast.classList.contains("busy")) clearToast();
     savePending(info);
     await presentRecord(info);
   } catch (e) {
@@ -577,7 +579,7 @@ document.querySelectorAll(".lib-tab").forEach((t) => {
 // ---- Keep saves a WAV into a chosen folder (Tauri backend) ----------------
 // The Rust side owns the disk: it remembers the folder in its config file,
 // downloads + decodes the MP3, and writes a real 16-bit PCM WAV next to
-// crate-log.json — the same result as the old server.
+// crate-log.json.
 let sampleDir = null;
 
 function folderBaseName(p) { return String(p).split(/[\\/]/).filter(Boolean).pop() || p; }
@@ -641,18 +643,8 @@ function animateLogo() {
     requestAnimationFrame(frame);
   });
 }
-function armAutoplayUnlock() {
-  const go = () => {
-    window.removeEventListener("pointerdown", go); window.removeEventListener("keydown", go);
-    if (currentRecord && els.player.paused) els.player.play().catch(() => {});
-  };
-  window.addEventListener("pointerdown", go);
-  window.addEventListener("keydown", go);
-}
-
 // dig / keep / toss, re-cueing whatever was pending last time
 async function boot() {
-  armAutoplayUnlock();
   loadLocal();
   renderLibrary();
   restoreSampleFolder();      // reconnect the sample folder if one was picked

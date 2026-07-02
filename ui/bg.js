@@ -1,5 +1,5 @@
-/* Coffee & Milk swirl — same engine as the desktop app, tuned darker so text stays
-   legible. Kept external so the page can run under a strict Content-Security-Policy
+/* Coffee & Milk swirl behind the app, tuned dark so text stays legible.
+   Kept external so the page can run under a strict Content-Security-Policy
    (script-src 'self', no inline scripts). */
 const FRAG = `
   precision highp float;
