@@ -1,13 +1,14 @@
 "use strict";
 
 // ===========================================================================
-// Crate Digger — a serverless desktop auditioner. Digs the Internet Archive,
+// Crate Digger — a Tauri desktop auditioner. Digs the Internet Archive,
 // keep/toss one record at a time, and saves kept records as WAVs into a folder
-// you pick (File System Access API — desktop Chrome/Edge). The crate log lives
-// in localStorage, seeded from library.json in the repo on first load.
+// you pick (the Rust backend owns the disk). The durable crate log is
+// crate-log.json in that folder; localStorage is the working cache.
 // ===========================================================================
 
 // ---- config -------------------------------------------------------------
+const invoke = window.__TAURI__.core.invoke;
 const LS = { log: "cd_log_cache", pending: "cd_pending" };
 
 const DEFAULT_SOURCE_KEY = "lp_soul_blues";
@@ -154,13 +155,8 @@ function safeName(text) {
 }
 // ---- Internet Archive client ----------------------------------------------
 async function iaJson(url) {
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error("Internet Archive is busy — try again in a moment.");
-  const data = await r.json();
-  if (data && data.error && !("response" in data)) {
-    throw new Error("Internet Archive is busy — try again in a moment.");
-  }
-  return data;
+  try { return await invoke("ia_json", { url }); }
+  catch (_) { throw new Error("Internet Archive is busy — try again in a moment."); }
 }
 const _numCache = new Map();
 async function numFound(query) {
@@ -223,11 +219,10 @@ async function pickRandom(query, pick, tries, exclude) {
 }
 
 // ---- crate log ------------------------------------------------------------
-// Three layers, merged newest-verdict-wins:
+// Two layers, merged newest-verdict-wins:
 //   1. localStorage — the working copy, updated on every verdict.
-//   2. crate-log.json in your sample folder — the durable copy on disk, written
-//      on every verdict once a folder is set. Survives a cleared browser.
-//   3. library.json in the repo — the seed this app shipped with.
+//   2. crate-log.json in your sample folder — the source of truth on disk,
+//      written on every verdict once a folder is set.
 let LIBRARY = {};
 
 function logStamp(e) { return e.downloaded_at || e.listened_at || e.seen_at || 0; }
@@ -246,14 +241,7 @@ function loadLocal() {
 // every verdict: update the working copy and mirror it to disk
 function persistLog() {
   saveLocal();
-  writeLogToFolder();
-}
-async function loadLog() {
-  loadLocal();
-  try {
-    const r = await fetch("./library.json?ts=" + Date.now(), { cache: "no-store" });
-    if (r.ok) { LIBRARY = mergeLogs(await r.json(), LIBRARY); saveLocal(); }
-  } catch (_) { /* offline — run on the local cache */ }
+  invoke("save_log", { log: LIBRARY }).catch(() => {});   // fire-and-forget
 }
 
 function libEntryFrom(rec, sourceKey) {
@@ -500,12 +488,14 @@ async function keep() {
   if (sampleDir) {                              // write a WAV into the sample folder
     try {
       setBusy(true, "💾 Converting to WAV → your sample folder…");
-      const fn = await saveWavToFolder(rec);
+      const fn = await invoke("keep_record", {
+        url: rec.play_url, baseName: safeName((rec.title || "") + " - " + (rec.creator || "")),
+      });
       const e = LIBRARY[rec.cache_name];
       if (e && !(e.kept_files || (e.kept_files = [])).includes(fn)) e.kept_files.push(fn);
-      note = "WAV → " + sampleFolderName + "/" + fn;
+      note = "WAV → " + folderBaseName(sampleDir) + "/" + fn;
     } catch (e) {
-      note = "⚠ WAV save failed: " + e.message;
+      note = "⚠ WAV save failed: " + (e.message || e);
     }
   }
   persistLog();
@@ -584,144 +574,37 @@ document.querySelectorAll(".lib-tab").forEach((t) => {
   });
 });
 
-// ---- Keep saves a WAV into a chosen folder (File System Access API) ------
-// Browsers can't touch the disk freely, but desktop Chrome/Edge can write into a
-// folder the user grants once. We remember the folder handle in IndexedDB, decode
-// the MP3 with Web Audio, and write a real WAV — the same result as the old server.
-let sampleDir = null, sampleFolderName = "";
+// ---- Keep saves a WAV into a chosen folder (Tauri backend) ----------------
+// The Rust side owns the disk: it remembers the folder in its config file,
+// downloads + decodes the MP3, and writes a real 16-bit PCM WAV next to
+// crate-log.json — the same result as the old server.
+let sampleDir = null;
 
-function idbOpen() {
-  return new Promise((res, rej) => {
-    const r = indexedDB.open("crate-digger", 1);
-    r.onupgradeneeded = () => r.result.createObjectStore("kv");
-    r.onsuccess = () => res(r.result);
-    r.onerror = () => rej(r.error);
-  });
-}
-async function idbGet(key) {
-  const db = await idbOpen();
-  return new Promise((res, rej) => {
-    const g = db.transaction("kv", "readonly").objectStore("kv").get(key);
-    g.onsuccess = () => res(g.result); g.onerror = () => rej(g.error);
-  });
-}
-async function idbSet(key, val) {
-  const db = await idbOpen();
-  return new Promise((res, rej) => {
-    const tx = db.transaction("kv", "readwrite");
-    tx.objectStore("kv").put(val, key);
-    tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error);
-  });
-}
+function folderBaseName(p) { return String(p).split(/[\\/]/).filter(Boolean).pop() || p; }
 function updateFolderStatus() {
-  els.folderStatus.textContent = sampleDir ? sampleFolderName : "no folder set";
-}
-// The crate log lives on disk next to the WAVs — the durable copy of your
-// keep/toss history, independent of browser storage.
-const LOG_FILE = "crate-log.json";
-async function folderPermission(ask) {
-  if (!sampleDir) return false;
-  try {
-    if ((await sampleDir.queryPermission({ mode: "readwrite" })) === "granted") return true;
-    if (!ask) return false;
-    return (await sampleDir.requestPermission({ mode: "readwrite" })) === "granted";
-  } catch (_) { return false; }
-}
-async function readLogFromFolder() {
-  try {
-    const fh = await sampleDir.getFileHandle(LOG_FILE);
-    const disk = JSON.parse(await (await fh.getFile()).text()) || {};
-    LIBRARY = mergeLogs(disk, LIBRARY);
-  } catch (_) { /* no crate-log.json yet */ }
-}
-let logWriting = false, logWriteQueued = false;
-async function writeLogToFolder() {
-  if (!(await folderPermission(false))) return;
-  if (logWriting) { logWriteQueued = true; return; }   // serialize; last write wins
-  logWriting = true;
-  try {
-    const fh = await sampleDir.getFileHandle(LOG_FILE, { create: true });
-    const w = await fh.createWritable();
-    await w.write(JSON.stringify(LIBRARY, null, 1));
-    await w.close();
-  } catch (_) { /* folder unplugged / permission revoked — localStorage still has it */ }
-  logWriting = false;
-  if (logWriteQueued) { logWriteQueued = false; writeLogToFolder(); }
+  els.folderStatus.textContent = sampleDir ? folderBaseName(sampleDir) : "no folder set";
 }
 // merge the on-disk log in, then mirror the union back out
-async function syncLogWithFolder(ask) {
-  if (!(await folderPermission(ask))) return;
-  await readLogFromFolder();
+async function syncLogWithFolder() {
+  if (!sampleDir) return;
+  try { LIBRARY = mergeLogs(await invoke("load_log"), LIBRARY); } catch (_) {}
   saveLocal();
   renderLibrary();
   renderSourceOptions();
-  writeLogToFolder();
+  invoke("save_log", { log: LIBRARY }).catch(() => {});
 }
 async function chooseSampleFolder() {
-  try {
-    const dir = await window.showDirectoryPicker({ mode: "readwrite", id: "crate-samples" });
-    sampleDir = dir; sampleFolderName = dir.name;
-    try { await idbSet("sampleDir", dir); } catch (_) {}
-    updateFolderStatus();
-    await syncLogWithFolder(true);
-  } catch (_) { /* user cancelled the picker */ }
+  let dir = null;
+  try { dir = await invoke("pick_folder"); } catch (_) {}
+  if (!dir) return;                             // user cancelled the picker
+  sampleDir = dir;
+  updateFolderStatus();
+  await syncLogWithFolder();
 }
 async function restoreSampleFolder() {
-  if (!window.showDirectoryPicker) {            // unsupported browser (Firefox/Safari)
-    els.folderPick.classList.add("hidden");
-    els.folderStatus.textContent = "needs desktop Chrome/Edge";
-    return;
-  }
-  try {
-    const dir = await idbGet("sampleDir");
-    if (dir) { sampleDir = dir; sampleFolderName = dir.name || "your folder"; }
-  } catch (_) {}
+  try { sampleDir = (await invoke("get_settings")).sample_dir; } catch (_) {}
   updateFolderStatus();
-  // If Chrome remembered the grant, pull the on-disk log in right away; otherwise
-  // the first user gesture re-asks (requestPermission needs user activation).
-  await syncLogWithFolder(false);
-}
-// AudioBuffer -> 16-bit PCM WAV (Blob)
-function audioBufferToWav(buf) {
-  const numCh = buf.numberOfChannels, sr = buf.sampleRate, n = buf.length;
-  const bytes = 44 + n * numCh * 2, ab = new ArrayBuffer(bytes), view = new DataView(ab);
-  let p = 0;
-  const str = (s) => { for (let i = 0; i < s.length; i++) view.setUint8(p++, s.charCodeAt(i)); };
-  const u16 = (d) => { view.setUint16(p, d, true); p += 2; };
-  const u32 = (d) => { view.setUint32(p, d, true); p += 4; };
-  str("RIFF"); u32(bytes - 8); str("WAVE"); str("fmt "); u32(16); u16(1); u16(numCh);
-  u32(sr); u32(sr * numCh * 2); u16(numCh * 2); u16(16); str("data"); u32(n * numCh * 2);
-  const chans = [];
-  for (let c = 0; c < numCh; c++) chans.push(buf.getChannelData(c));
-  for (let i = 0; i < n; i++)
-    for (let c = 0; c < numCh; c++) {
-      const s = Math.max(-1, Math.min(1, chans[c][i]));
-      view.setInt16(p, s < 0 ? s * 0x8000 : s * 0x7fff, true); p += 2;
-    }
-  return new Blob([ab], { type: "audio/wav" });
-}
-async function uniqueName(dir, base, ext) {
-  let name = base + ext;
-  for (let n = 2; n < 999; n++) {
-    try { await dir.getFileHandle(name); name = base + "_" + n + ext; }  // exists -> bump
-    catch (_) { return name; }                                          // free
-  }
-  return base + "_" + Date.now() + ext;
-}
-async function saveWavToFolder(rec) {
-  if (!(await folderPermission(true))) throw new Error("folder permission denied");
-  const resp = await fetch(rec.play_url || playUrlFor(rec.identifier, rec.mp3_name));
-  if (!resp.ok) throw new Error("HTTP " + resp.status);
-  const ab = await resp.arrayBuffer();
-  const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  let audio;
-  try { audio = await ctx.decodeAudioData(ab); } finally { ctx.close(); }
-  const blob = audioBufferToWav(audio);
-  const name = await uniqueName(sampleDir, safeName((rec.title || "") + " - " + (rec.creator || "")), ".wav");
-  const fh = await sampleDir.getFileHandle(name, { create: true });
-  const w = await fh.createWritable();
-  await w.write(blob); await w.close();
-  return name;
+  await syncLogWithFolder();
 }
 els.folderPick.addEventListener("click", chooseSampleFolder);
 
@@ -762,9 +645,6 @@ function armAutoplayUnlock() {
   const go = () => {
     window.removeEventListener("pointerdown", go); window.removeEventListener("keydown", go);
     if (currentRecord && els.player.paused) els.player.play().catch(() => {});
-    // First gesture = user activation: re-ask folder permission if Chrome didn't
-    // remember it, and pull the on-disk crate log in.
-    syncLogWithFolder(true);
   };
   window.addEventListener("pointerdown", go);
   window.addEventListener("keydown", go);
@@ -772,16 +652,8 @@ function armAutoplayUnlock() {
 
 // dig / keep / toss, re-cueing whatever was pending last time
 async function boot() {
-  // The old PWA build registered a service worker that caches the app shell —
-  // unregister it (and drop its caches) so returning visitors get this version.
-  if ("serviceWorker" in navigator) {
-    try {
-      navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
-      if (window.caches) caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
-    } catch (_) {}
-  }
   armAutoplayUnlock();
-  await loadLog();
+  loadLocal();
   renderLibrary();
   restoreSampleFolder();      // reconnect the sample folder if one was picked
   loadSources();

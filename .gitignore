@@ -1,2 +1,5 @@
 # Claude Code — personal, machine-local settings (incl. the auto-commit hook)
 .claude/settings.local.json
+
+# Rust build artifacts
+src-tauri/target/

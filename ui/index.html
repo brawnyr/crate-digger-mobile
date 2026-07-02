@@ -3,11 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Strict CSP for a static GitHub Pages site (no response headers available).
-       Locks scripts/styles to same-origin and limits network egress to the Internet
-       Archive. If audio ever stops loading, the culprit is almost always
-       media-src/connect-src. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; media-src https://archive.org https://*.archive.org; connect-src 'self' https://archive.org https://*.archive.org; base-uri 'none'; object-src 'none'; form-action 'none'" />
+  <!-- CSP lives in tauri.conf.json — Tauri injects it (with nonces for its own
+       IPC scripts) so a hand-written meta tag here would only get in the way. -->
   <title>Crate Digger</title>
 
   <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
