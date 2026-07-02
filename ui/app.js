@@ -430,7 +430,7 @@ async function presentRecord(rec) {
   els.card.classList.remove("hidden", "in");
   void els.card.offsetWidth;
   els.card.classList.add("in");
-  if (!ready) { toast("⚠️ Couldn't load that record — 🗑 Toss it to move on.", "err"); return; }
+  if (!ready) { toast("⚠️ Couldn't load that record — toss it to move on.", "err"); return; }
   els.player.play().catch(() => {});
 }
 

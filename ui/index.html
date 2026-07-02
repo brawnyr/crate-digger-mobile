@@ -9,7 +9,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=VT323&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
@@ -85,10 +85,15 @@
       </label>
     </section>
 
-    <!-- keep it or toss it, then straight to the next dig -->
+    <!-- keep it or toss it, then straight to the next dig. Wordless ASCII blobs:
+         the dense warm one keeps, the crumbling one tosses — labels are aria-only. -->
     <section class="verdict">
-      <button id="toss" class="btn toss" type="button" disabled>Toss it</button>
-      <button id="keep" class="btn keep" type="button" disabled>Keep it</button>
+      <button id="toss" class="btn toss" type="button" disabled aria-label="Toss it" title="Toss it"><pre aria-hidden="true"> ·˙ .:*~*:. ˙·
+˙ ·`  ·˙·  ´· ˙
+  ·   ˙ ˙   ·  </pre></button>
+      <button id="keep" class="btn keep" type="button" disabled aria-label="Keep it" title="Keep it"><pre aria-hidden="true"> .:=*%@@%*=:.
+:*%@@@@@@@@%*:
+ `=*%@@@@%*=´ </pre></button>
     </section>
 
     <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>

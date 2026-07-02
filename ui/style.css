@@ -278,12 +278,21 @@ audio#player { display: none; }
   display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
   justify-content: center; margin: 18px 0 6px;
 }
-/* the verdict pair breaks from the UI mono — big CRT-terminal type, like the disc */
+/* the verdict pair: abstract ASCII blobs, kin to the disc — the plump glowing
+   one keeps, the one dissolving into dust tosses. Organic outlines that morph
+   a little on hover; the words live in aria-label/title. */
 .verdict .btn {
-  height: 54px; padding: 0 28px; border-radius: var(--r-lg);
-  font-family: "VT323", var(--mono); font-size: 1.5rem; font-weight: 400;
-  text-transform: uppercase; letter-spacing: 0.09em;
+  min-width: 132px; padding: 14px 20px;
+  border-radius: 55% 45% 58% 42% / 52% 62% 38% 48%;
+  transition: border-radius 0.35s ease, transform 0.15s ease, box-shadow 0.15s ease,
+    background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
+.verdict .btn pre {
+  margin: 0; font-family: var(--mono); font-size: 0.68rem; font-weight: 700;
+  line-height: 1.25; text-align: center;
+}
+.btn.toss { border-radius: 42% 58% 36% 64% / 62% 40% 60% 38%; }
+.verdict .btn:hover:not(:disabled) { border-radius: 50% 50% 48% 52% / 55% 50% 50% 45%; }
 .genre {
   color: var(--muted); font-size: 0.82rem; font-weight: 600;
   display: flex; align-items: center; gap: 8px;
