@@ -58,7 +58,7 @@ const els = {
   title: $("title"), artist: $("artist"), year: $("year"), genre: $("genre"),
   label: $("label"), player: $("player"), ppBtn: $("ppBtn"), seek: $("seek"),
   seekFill: $("seekFill"), ptime: $("ptime"), pdur: $("pdur"), archive: $("archive"),
-  keep: $("keep"), toss: $("toss"), dl: $("dl"), genreSelect: $("genre-select"),
+  keep: $("keep"), toss: $("toss"), genreSelect: $("genre-select"),
   verdictTag: $("verdictTag"), toast: $("toast"), syncState: $("syncState"),
   libCount: $("libCount"), libList: $("libList"), libEmpty: $("libEmpty"),
   asciiRecord: $("asciiRecord"), logo: $("logo"), cueing: $("cueing"),
@@ -100,30 +100,36 @@ function renderDisc(phase) {
   els.asciiRecord.textContent = out;
 }
 let discPlaying = false, discLoading = false;
+// The disc can spin fast to signal loading, but the text caption only shows when a
+// label is passed — "cueing it up…" is gone; a bare setLoading(true) just spins.
 function setLoading(on, label) {
   discLoading = on;
   els.record.classList.toggle("loading", on);
-  els.cueing.classList.toggle("hidden", !on);
-  if (on && label != null) els.cueing.textContent = label;
+  const showCaption = on && !!label;
+  els.cueing.classList.toggle("hidden", !showCaption);
+  if (showCaption) els.cueing.textContent = label;
 }
 (function spinDisc() {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) { renderDisc(0.8); return; }
-  let phase = 0, speed = 0, last = performance.now();
+  let phase = 0, speed = 0, last = performance.now(), raf = null;
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     const target = discLoading ? 9.0 : (discPlaying ? 2.6 : 0.5);
     speed += (target - speed) * 0.05;
     phase += speed * dt;
     renderDisc(phase);
-    requestAnimationFrame(frame);
+    raf = requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
+  function start() { if (raf == null) { last = performance.now(); raf = requestAnimationFrame(frame); } }
+  function stop() { if (raf != null) { cancelAnimationFrame(raf); raf = null; } }
+  document.addEventListener("visibilitychange", () => (document.hidden ? stop() : start()));
+  start();
 })();
 
 // ---- little helpers -----------------------------------------------------
 function esc(s) {
-  return String(s == null ? "" : s).replace(/[&<>"]/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  return String(s == null ? "" : s).replace(/[&<>"'`]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;", "`": "&#96;" }[c]));
 }
 function randInt(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
 function shuffle(arr) {
@@ -157,30 +163,6 @@ function safeName(text) {
   text = String(text || "").replace(/[<>:"/\\|?*\x00-\x1f]/g, "").replace(/\s+/g, " ").trim().replace(/^[.\s]+|[.\s]+$/g, "");
   return (text || "record").slice(0, 110);
 }
-// Fetch the MP3 bytes (CORS is open) and save them to the phone's Downloads.
-async function downloadRecord(rec, btn) {
-  if (!rec) return;
-  const url = rec.play_url || playUrlFor(rec.identifier, rec.mp3_name);
-  const name = safeName((rec.title || "") + " - " + (rec.creator || "")) + ".mp3";
-  const restore = btn ? btn.textContent : "";
-  if (btn) { btn.disabled = true; btn.classList.add("working"); if (btn.id === "dl") btn.textContent = "⏳ Downloading…"; }
-  try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const blob = await r.blob();
-    const obj = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = obj; a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(obj), 5000);
-    toast("⬇ Saved to your phone: " + name, "ok");
-  } catch (e) {
-    toast("⚠️ Download failed: " + e.message + " — try again.", "err");
-  } finally {
-    if (btn) { btn.disabled = false; btn.classList.remove("working"); if (btn.id === "dl") btn.textContent = restore || "⬇ Download"; }
-  }
-}
-
 // ---- Internet Archive client (ported from app.py) -----------------------
 async function iaJson(url) {
   const r = await fetch(url, { cache: "no-store" });
@@ -238,13 +220,13 @@ async function pickRandom(query, pick, tries, exclude) {
     try { docs = (await iaJson("https://archive.org/advancedsearch.php?" + params.toString())).response.docs; }
     catch (_) { continue; }
     shuffle(docs);
-    for (const d of docs) {
-      let info = null;
-      try { info = await recordInfo(d.identifier, pick); } catch (_) { info = null; }
-      if (info) {
-        if (exclude && exclude.has(info.cache_name)) continue;
-        return info;
-      }
+    // Fetch all candidates' metadata concurrently, then take the first usable one
+    // in shuffled order — much faster than probing them one at a time.
+    const infos = await Promise.all(docs.map((d) => recordInfo(d.identifier, pick).catch(() => null)));
+    for (const info of infos) {
+      if (!info) continue;
+      if (exclude && exclude.has(info.cache_name)) continue;
+      return info;
     }
   }
   return null;
@@ -394,8 +376,15 @@ function entryToRecord(e) {
 
 // ---- audio player (from desktop) ----------------------------------------
 let currentRecord = null, busy = false;
-function toast(msg, kind) { els.toast.textContent = msg; els.toast.className = "toast " + (kind || ""); }
-function clearToast() { els.toast.className = "toast hidden"; }
+let toastTimer = null;
+function toast(msg, kind) {
+  els.toast.textContent = msg;
+  els.toast.className = "toast " + (kind || "");
+  if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
+  // "busy" toasts track an in-flight op and are cleared by its result; others fade.
+  if (kind !== "busy") toastTimer = setTimeout(clearToast, kind === "err" ? 9000 : 5000);
+}
+function clearToast() { if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; } els.toast.className = "toast hidden"; }
 function setBusy(state, msg) {
   busy = state;
   els.keep.disabled = state || !currentRecord;
@@ -404,36 +393,50 @@ function setBusy(state, msg) {
   els.genreSelect.disabled = state;
   if (state && msg) toast(msg, "busy");
 }
-els.player.addEventListener("playing", () => { discPlaying = true; });
+els.player.addEventListener("playing", () => { discPlaying = true; setLoading(false); });
 els.player.addEventListener("pause", () => { discPlaying = false; });
 els.player.addEventListener("ended", () => { discPlaying = false; });
+// mid-track buffering: spin the disc faster (no text), settle once audio resumes
+els.player.addEventListener("waiting", () => { if (currentRecord) setLoading(true); });
 
 function fmtTime(s) {
   if (!isFinite(s) || s < 0) return "0:00";
   s = Math.floor(s);
   return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
 }
+function updateSeekAria() {
+  const d = Math.floor(els.player.duration || 0), c = Math.floor(els.player.currentTime || 0);
+  els.seek.setAttribute("aria-valuemax", String(d));
+  els.seek.setAttribute("aria-valuenow", String(c));
+  els.seek.setAttribute("aria-valuetext", fmtTime(c) + " of " + fmtTime(d));
+}
 els.ppBtn.addEventListener("click", () => {
   if (els.player.paused) els.player.play().catch(() => {}); else els.player.pause();
 });
-els.player.addEventListener("play", () => { els.ppBtn.textContent = "⏸"; });
-els.player.addEventListener("pause", () => { els.ppBtn.textContent = "▶"; });
-els.player.addEventListener("ended", () => { els.ppBtn.textContent = "▶"; });
+els.player.addEventListener("play", () => { els.ppBtn.textContent = "⏸"; els.ppBtn.setAttribute("aria-label", "Pause"); });
+els.player.addEventListener("pause", () => { els.ppBtn.textContent = "▶"; els.ppBtn.setAttribute("aria-label", "Play"); });
+els.player.addEventListener("ended", () => { els.ppBtn.textContent = "▶"; els.ppBtn.setAttribute("aria-label", "Play"); });
+// A failure *after* playback has begun (loadAudio owns load-time errors; by now busy is false).
+els.player.addEventListener("error", () => {
+  if (busy || !currentRecord) return;
+  if (MODE === "play") { toast("⚠️ Playback dropped — skipping…", "err"); setTimeout(() => { if (!busy) playKept(); }, 600); }
+});
 els.player.addEventListener("loadstart", () => {
   els.seekFill.style.width = "0%"; els.ptime.textContent = "0:00"; els.pdur.textContent = "0:00";
 });
-els.player.addEventListener("loadedmetadata", () => { els.pdur.textContent = fmtTime(els.player.duration); });
+els.player.addEventListener("loadedmetadata", () => { els.pdur.textContent = fmtTime(els.player.duration); updateSeekAria(); });
 els.player.addEventListener("timeupdate", () => {
   const d = els.player.duration || 0;
   els.seekFill.style.width = (d ? (els.player.currentTime / d) * 100 : 0) + "%";
   els.ptime.textContent = fmtTime(els.player.currentTime);
+  updateSeekAria();
 });
 let seeking = false;
 function seekTo(clientX) {
   const rect = els.seek.getBoundingClientRect();
   const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
   els.seekFill.style.width = ratio * 100 + "%";
-  if (els.player.duration) els.player.currentTime = ratio * els.player.duration;
+  if (els.player.duration) { els.player.currentTime = ratio * els.player.duration; updateSeekAria(); }
 }
 els.seek.addEventListener("pointerdown", (e) => { seeking = true; els.seek.setPointerCapture(e.pointerId); seekTo(e.clientX); });
 els.seek.addEventListener("pointermove", (e) => { if (seeking) seekTo(e.clientX); });
@@ -442,12 +445,26 @@ els.seek.addEventListener("keydown", (e) => {
   if (!els.player.duration) return;
   if (e.key === "ArrowRight") els.player.currentTime = Math.min(els.player.duration, els.player.currentTime + 5);
   else if (e.key === "ArrowLeft") els.player.currentTime = Math.max(0, els.player.currentTime - 5);
+  else if (e.key === "Home") els.player.currentTime = 0;
+  else if (e.key === "End") els.player.currentTime = Math.max(0, els.player.duration - 1);
+  else return;
+  e.preventDefault();
+  updateSeekAria();
 });
-function loadAudio(url) {
+// Resolve on canplay/error, but also on a timeout — a stalled stream (socket opens,
+// no bytes, no error) must never leave the disc spinning and the controls disabled.
+function loadAudio(url, timeoutMs) {
   return new Promise((resolve) => {
-    const onReady = () => { cleanup(); resolve(true); };
-    const onErr = () => { cleanup(); resolve(false); };
-    function cleanup() { els.player.removeEventListener("canplay", onReady); els.player.removeEventListener("error", onErr); }
+    let done = false;
+    const finish = (ok) => { if (done) return; done = true; cleanup(); resolve(ok); };
+    const onReady = () => finish(true);
+    const onErr = () => finish(false);
+    function cleanup() {
+      clearTimeout(timer);
+      els.player.removeEventListener("canplay", onReady);
+      els.player.removeEventListener("error", onErr);
+    }
+    const timer = setTimeout(() => finish(false), timeoutMs || 18000);
     els.player.addEventListener("canplay", onReady, { once: true });
     els.player.addEventListener("error", onErr, { once: true });
     els.player.src = url; els.player.load();
@@ -486,7 +503,7 @@ function clearPending() { try { localStorage.removeItem(LS.pending); } catch (_)
 
 async function presentRecord(rec) {
   currentRecord = rec;
-  els.keep.disabled = els.toss.disabled = els.dl.disabled = false;
+  els.keep.disabled = els.toss.disabled = false;
   els.title.textContent = rec.title || "(untitled)";
   els.artist.textContent = rec.creator || "Unknown artist";
   els.year.textContent = rec.year || "";
@@ -497,9 +514,10 @@ async function presentRecord(rec) {
   const logged = LIBRARY[rec.cache_name || rec.key];
   updateStateChips(logged || rec);
 
-  setLoading(true, "📻 cueing it up…");
+  setLoading(true);
   const ready = await loadAudio(rec.play_url);
   if (currentRecord !== rec) return;
+  setLoading(false);
   els.placeholder.classList.add("hidden");
   els.card.classList.remove("hidden", "in");
   void els.card.offsetWidth;
@@ -541,7 +559,7 @@ function showExhausted(msg) {
   els.placeholder.innerHTML =
     '<span class="ph-lead">🎉 ' + esc(msg) + '</span>' +
     '<span class="ph-sub">Pick another crate above to keep digging.</span>';
-  els.keep.disabled = els.toss.disabled = els.dl.disabled = true;
+  els.keep.disabled = els.toss.disabled = true;
 }
 
 async function keep() {
@@ -583,7 +601,6 @@ els.toss.addEventListener("click", async () => {
   spin();
 });
 els.keep.addEventListener("click", keep);
-els.dl.addEventListener("click", () => downloadRecord(currentRecord, els.dl));
 els.genreSelect.addEventListener("change", () => {
   clearToast();
   if (MODE === "play") { buildPlaylist(); playKept(); } else spin(true);
@@ -605,12 +622,11 @@ function renderLibrary() {
     const badge = e.downloaded
       ? '<span class="lib-b kept" title="Kept">💾 kept</span>'
       : '<span class="lib-b tossed" title="Tossed">🗑 tossed</span>';
-    return '<li data-key="' + esc(e.cache_name) + '">' +
+    return '<li data-key="' + esc(e.cache_name) + '" tabindex="0" role="button" aria-label="Play ' + esc(e.title || "untitled") + '">' +
       '<span class="lib-play" aria-hidden="true">▶</span>' +
       '<span class="lib-main"><span class="lib-title">' + esc(e.title || "(untitled)") + '</span>' +
       '<span class="lib-artist">' + sub + '</span></span>' +
-      '<span class="lib-badges">' + badge + '</span>' +
-      '<button class="lib-dl" type="button" title="Download to phone" aria-label="Download">⬇</button></li>';
+      '<span class="lib-badges">' + badge + '</span></li>';
   }).join("");
 }
 // tap a logged record to re-cue and play it (your kept list = a playlist)
@@ -619,11 +635,17 @@ els.libList.addEventListener("click", (ev) => {
   if (!li) return;
   const e = LIBRARY[li.dataset.key];
   if (!e || !e.identifier) return;
-  const dlBtn = ev.target.closest(".lib-dl");
-  if (dlBtn) { downloadRecord(entryToRecord(e), dlBtn); return; }
   clearToast();
   presentRecord(entryToRecord(e));
   els.card.scrollIntoView({ behavior: "smooth", block: "center" });
+});
+// Enter / Space on a focused row plays it (rows are role="button" tabindex="0")
+els.libList.addEventListener("keydown", (ev) => {
+  if (ev.key !== "Enter" && ev.key !== " ") return;
+  const li = ev.target.closest("li[data-key]");
+  if (!li) return;
+  ev.preventDefault();
+  li.click();
 });
 document.querySelectorAll(".lib-tab").forEach((t) => {
   t.addEventListener("click", () => {
@@ -643,14 +665,37 @@ function updateSyncState(ok, err) {
   else txt = "✓ synced to GitHub";
   els.syncState.textContent = txt;
 }
+const appRoot = document.querySelector(".app");
+let sheetPrevFocus = null;
+// Keep Tab inside the open sheet, and close on Escape.
+function sheetKeydown(e) {
+  if (e.key === "Escape") { e.preventDefault(); closeSheet(); return; }
+  if (e.key !== "Tab") return;
+  const focusable = els.settings.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+  const list = Array.prototype.filter.call(focusable, (el) => !el.disabled && el.offsetParent !== null);
+  if (!list.length) return;
+  const first = list[0], last = list[list.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
 function openSheet() {
+  sheetPrevFocus = document.activeElement;
   els.tokenInput.value = token();
   els.sheetStatus.textContent = token() ? "Token saved on this device." : "";
   if (window.showDirectoryPicker) { els.folderRow.classList.remove("hidden"); updateFolderStatus(); }
   els.settings.classList.remove("hidden");
   els.settings.setAttribute("aria-hidden", "false");
+  if (appRoot) appRoot.inert = true;                 // rest of the page can't be reached
+  els.settings.addEventListener("keydown", sheetKeydown);
+  setTimeout(() => els.tokenInput.focus(), 30);
 }
-function closeSheet() { els.settings.classList.add("hidden"); els.settings.setAttribute("aria-hidden", "true"); }
+function closeSheet() {
+  els.settings.classList.add("hidden");
+  els.settings.setAttribute("aria-hidden", "true");
+  els.settings.removeEventListener("keydown", sheetKeydown);
+  if (appRoot) appRoot.inert = false;
+  if (sheetPrevFocus && sheetPrevFocus.focus) sheetPrevFocus.focus();
+}
 els.gear.addEventListener("click", openSheet);
 els.settingsClose.addEventListener("click", closeSheet);
 els.settings.addEventListener("click", (e) => { if (e.target === els.settings) closeSheet(); });
@@ -785,7 +830,7 @@ setInterval(() => { if (logDirty) flushLog(); }, 15000);
 // and play it back-to-back. No dig, no keep/toss, no token: library.json is
 // read-only input here, written by the desktop auditioner.
 // ===========================================================================
-let KEPT = [], playlist = [], pos = -1;
+let KEPT = [], playlist = [], pos = -1, keptFails = 0;
 function isKept(e) {
   return e && e.identifier && e.mp3_name &&
     (e.downloaded === true || (Array.isArray(e.kept_files) && e.kept_files.length > 0));
@@ -825,7 +870,7 @@ async function presentKept(rec) {
   els.genre.textContent = rec.genre || "";
   els.label.textContent = rec.album ? "💿 " + rec.album : (rec.label ? "Label: " + rec.label : "");
   els.archive.href = rec.archive_url || "#";
-  setLoading(true, "📻 cueing it up…");
+  setLoading(true);
   const ready = await loadAudio(rec.play_url);
   if (currentRecord !== rec) return;
   setLoading(false);
@@ -833,7 +878,19 @@ async function presentKept(rec) {
   els.card.classList.remove("hidden", "in");
   void els.card.offsetWidth;
   els.card.classList.add("in");
-  if (!ready) { toast("⚠️ Couldn't load that one — skipping…", "err"); setTimeout(() => { if (!busy) playKept(); }, 900); return; }
+  if (!ready) {
+    // Give up after a few dead tracks in a row instead of looping the playlist forever.
+    keptFails++;
+    if (keptFails >= Math.min(4, Math.max(1, playlist.length))) {
+      keptFails = 0;
+      toast("⚠️ Can't reach the Archive right now — check your connection, then tap ⏭.", "err");
+      return;
+    }
+    toast("⚠️ Couldn't load that one — skipping…", "err");
+    setTimeout(() => { if (!busy) playKept(); }, 900);
+    return;
+  }
+  keptFails = 0;
   els.player.play().catch(() => {});
 }
 async function playKept() {
@@ -853,7 +910,7 @@ function showEmptyKept() {
   els.placeholder.classList.remove("hidden");
   els.card.classList.add("hidden");
 }
-els.skip.addEventListener("click", () => { clearToast(); playKept(); });
+els.skip.addEventListener("click", () => { clearToast(); keptFails = 0; playKept(); });
 // player is radio-style: when a track ends, roll straight into the next kept one
 els.player.addEventListener("ended", () => { if (MODE === "play" && !busy) playKept(); });
 
