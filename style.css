@@ -16,8 +16,8 @@
   /* ink on the haze */
   --ink: #f8efdd;
   --body: #e7d8bf;
-  --muted: #c3ab86;
-  --muted-dim: #9c8765;
+  --muted: #cdb693;
+  --muted-dim: #b6a079;   /* lightened for AA contrast over the bright swirl */
   /* glass */
   --glass: rgba(36, 23, 13, 0.42);
   --glass-soft: rgba(40, 26, 15, 0.30);
@@ -168,6 +168,8 @@ header { text-align: center; margin-bottom: 30px; }
   .logo { animation: none; }   /* the disc renders a single still frame in JS */
   .card.in { animation: none; }
   .cueing, .record.loading .ascii-record { animation: none; }
+  .count { animation: none; }
+  .sheet-card { animation: none; }
 }
 
 /* ---------------- info / record card ---------------- */
@@ -472,12 +474,14 @@ code {
    ========================================================================== */
 /* respect notches / home indicator when installed full-screen */
 .app { padding-top: max(40px, env(safe-area-inset-top));
-       padding-bottom: max(72px, calc(env(safe-area-inset-bottom) + 40px)); }
+       padding-bottom: max(72px, calc(env(safe-area-inset-bottom) + 40px));
+       padding-left: max(24px, env(safe-area-inset-left));
+       padding-right: max(24px, env(safe-area-inset-right)); }
 
 header { position: relative; }
 .gear {
   position: absolute; top: 0; right: 0;
-  width: 40px; height: 40px; border-radius: 50%;
+  width: 44px; height: 44px; border-radius: 50%;
   border: 1px solid var(--glass-line); background: rgba(20, 11, 5, 0.45);
   color: var(--latte); font-size: 1.05rem; cursor: pointer;
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
@@ -521,7 +525,7 @@ header { position: relative; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; }
 .sheet-head h3 { margin: 0; color: var(--ink); font-size: 1rem; }
 .sheet-x {
-  width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+  width: 40px; height: 40px; border-radius: 50%; cursor: pointer;
   border: 1px solid var(--glass-line); background: rgba(20, 11, 5, 0.5);
   color: var(--muted); font-size: 0.9rem;
 }
@@ -546,12 +550,12 @@ header { position: relative; }
 /* larger touch targets on phones */
 @media (max-width: 620px) {
   .verdict .btn { height: 58px; font-size: 1rem; }
-  .pp { width: 40px; height: 40px; }
-  .seek { height: 10px; }
-  .lib-list li { padding: 11px 0; }
+  .pp { width: 44px; height: 44px; }
+  .seek { height: 14px; }
+  .lib-list li { padding: 13px 0; }
 }
 
-/* ---------------- download buttons (⬇ save MP3 to phone) ---------------- */
+/* ---------------- card actions (Archive.org link) ---------------- */
 .card-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 4px; }
 
 /* ---------------- desktop sample-folder row in settings ---------------- */

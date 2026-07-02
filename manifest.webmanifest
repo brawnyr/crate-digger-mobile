@@ -2,6 +2,7 @@
   "name": "Crate Digger",
   "short_name": "Crate Digger",
   "description": "Dig the Internet Archive on desktop; play your kept crate on your phone.",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
