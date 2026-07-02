@@ -97,7 +97,7 @@ function setLoading(on, label) {
   if (showCaption) els.cueing.textContent = label;
 }
 (function spinDisc() {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { renderDisc(0.8); return; }
+  const RM = matchMedia("(prefers-reduced-motion: reduce)");
   let phase = 0, speed = 0, last = performance.now(), raf = null;
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
@@ -109,8 +109,10 @@ function setLoading(on, label) {
   }
   function start() { if (raf == null) { last = performance.now(); raf = requestAnimationFrame(frame); } }
   function stop() { if (raf != null) { cancelAnimationFrame(raf); raf = null; } }
-  document.addEventListener("visibilitychange", () => (document.hidden ? stop() : start()));
-  start();
+  function apply() { if (RM.matches) { stop(); renderDisc(0.8); } else start(); }
+  document.addEventListener("visibilitychange", () => (document.hidden ? stop() : apply()));
+  RM.addEventListener("change", apply);
+  apply();
 })();
 
 // ---- little helpers -----------------------------------------------------
@@ -153,6 +155,7 @@ function safeName(text) {
 // ---- Internet Archive client ----------------------------------------------
 async function iaJson(url) {
   const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error("Internet Archive is busy — try again in a moment.");
   const data = await r.json();
   if (data && data.error && !("response" in data)) {
     throw new Error("Internet Archive is busy — try again in a moment.");
@@ -197,7 +200,7 @@ async function pickRandom(query, pick, tries, exclude) {
   if (total === 0) return null;
   const rows = 10;
   const reachable = Math.min(total, 10000);
-  const maxPage = Math.max(1, Math.floor(reachable / rows));
+  const maxPage = Math.max(1, Math.ceil(reachable / rows));
   for (let t = 0; t < tries; t++) {
     const params = new URLSearchParams({ q: query, "fl[]": "identifier", rows: String(rows),
       page: String(randInt(1, maxPage)), output: "json" });
@@ -444,8 +447,11 @@ async function presentRecord(rec) {
   els.player.play().catch(() => {});
 }
 
-async function spin(forceNew) {
+// A crate change while a dig is in flight queues one follow-up spin.
+let spinQueued = false;
+async function spin() {
   if (busy) return;
+  spinQueued = false;
   setBusy(true);
   setLoading(true, "🪩 digging through the crate…");
   els.player.pause();
@@ -468,6 +474,7 @@ async function spin(forceNew) {
     toast("⚠️ " + e.message + " — try switching crates.", "err");
   } finally {
     setLoading(false); setBusy(false);
+    if (spinQueued) spin();   // crate changed mid-dig — dig the new crate now
   }
 }
 function showExhausted(msg) {
@@ -486,15 +493,18 @@ async function keep() {
   els.player.pause();
   setBusy(true, "💾 Keeping it…");
   markVerdict(rec, rec.source, "keep");
+  saveLocal();                                  // verdict survives even if the WAV save is abandoned
   rec.downloaded = true; rec.listened = false;
   updateStateChips(rec);
   clearPending();
   renderLibrary();
-  let note = "logged on this device.";
+  let note = "⚠ no sample folder set — logged on this device only.";
   if (sampleDir) {                              // write a WAV into the sample folder
     try {
       setBusy(true, "💾 Converting to WAV → your sample folder…");
       const fn = await saveWavToFolder(rec);
+      const e = LIBRARY[rec.cache_name || rec.key];
+      if (e && !(e.kept_files || (e.kept_files = [])).includes(fn)) e.kept_files.push(fn);
       note = "WAV → " + sampleFolderName + "/" + fn;
     } catch (e) {
       note = "⚠ WAV save failed: " + e.message;
@@ -519,7 +529,11 @@ els.toss.addEventListener("click", async () => {
   spin();
 });
 els.keep.addEventListener("click", keep);
-els.genreSelect.addEventListener("change", () => { clearToast(); spin(true); });
+els.genreSelect.addEventListener("change", () => {
+  clearToast();
+  if (busy) { spinQueued = true; return; }
+  spin();
+});
 
 // ---- crate log render ---------------------------------------------------
 let libFilter = "all";
@@ -546,6 +560,7 @@ function renderLibrary() {
 }
 // tap a logged record to re-cue and play it (your kept list = a playlist)
 els.libList.addEventListener("click", (ev) => {
+  if (busy) return;
   const li = ev.target.closest("li[data-key]");
   if (!li) return;
   const e = LIBRARY[li.dataset.key];

@@ -88,7 +88,9 @@ const VERT = 'attribute vec2 aP;void main(){gl_Position=vec4(aP,0.,1.);}';
   }
   function start() { if (!raf && !RM.matches) raf = requestAnimationFrame(loop); }
   function stop() { if (raf) { cancelAnimationFrame(raf); raf = null; } }
-  if (RM.matches) { render(12.0); } else start();
-  document.addEventListener('visibilitychange', () => document.hidden ? stop() : start());
+  function apply() { if (RM.matches) { stop(); render(12.0); } else start(); }
+  apply();
+  document.addEventListener('visibilitychange', () => document.hidden ? stop() : apply());
+  RM.addEventListener('change', apply);
   window.addEventListener('resize', () => { if (RM.matches) render(12.0); });
 })();
