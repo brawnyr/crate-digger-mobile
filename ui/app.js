@@ -431,7 +431,9 @@ async function loadCrate() {
 }
 
 // ---- present / dig ------------------------------------------------------
-function savePending(rec) { try { localStorage.setItem(LS.pending, JSON.stringify(rec)); } catch (_) {} }
+// cuedEl is a live Audio element — it must never reach localStorage (it
+// serializes as {} and would poison the next boot's deck swap)
+function savePending(rec) { try { const { cuedEl, ...r } = rec; localStorage.setItem(LS.pending, JSON.stringify(r)); } catch (_) {} }
 function clearPending() { try { localStorage.removeItem(LS.pending); } catch (_) {} }
 
 // Nothing on the card changes until the audio is actually playable — the new
@@ -441,7 +443,8 @@ async function presentRecord(rec) {
   els.card.classList.add("stale");        // outgoing record dims while the next one cues
   setLoading(true);
   let ready;
-  if (rec.cuedEl) {                       // pre-buffered while the last record played — swap decks
+  // .play check heals a pending record restored from a poisoned cache ({} instead of an element)
+  if (rec.cuedEl && typeof rec.cuedEl.play === "function") { // pre-buffered — swap decks
     const old = els.player;
     old.pause(); old.removeAttribute("src"); old.load();
     els.player = rec.cuedEl; standby = old; rec.cuedEl = null;
