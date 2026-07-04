@@ -51,7 +51,7 @@ const els = {
   label: $("label"), player: $("player"), ppBtn: $("ppBtn"), seek: $("seek"),
   seekFill: $("seekFill"), ptime: $("ptime"), pdur: $("pdur"), archive: $("archive"),
   genreSelect: $("genre-select"),
-  verdictTag: $("verdictTag"), toast: $("toast"),
+  toast: $("toast"),
   libCount: $("libCount"), libList: $("libList"), libEmpty: $("libEmpty"),
   asciiRecord: $("asciiRecord"), logo: $("logo"), cueing: $("cueing"),
   folderPick: $("folderPick"), folderStatus: $("folderStatus"),
@@ -337,10 +337,37 @@ function setBusy(state, msg) {
   els.genreSelect.disabled = state;
   if (state && msg) toast(msg, "busy");
 }
-els.player.addEventListener("playing", () => { discPlaying = true; setLoading(false); });
-for (const ev of ["pause", "ended"]) els.player.addEventListener(ev, () => { discPlaying = false; });
-// mid-track buffering: spin the disc faster (no text), settle once audio resumes
-els.player.addEventListener("waiting", () => { if (currentRecord) setLoading(true); });
+// Two audio elements double-buffer the crate: one is live (els.player), the
+// other quietly buffers the next dig. Handlers guard on liveness so the
+// standby's events never touch the UI.
+let standby = new Audio();
+standby.preload = "auto";
+function wireAudio(p) {
+  const live = () => p === els.player;
+  p.addEventListener("playing", () => { if (!live()) return; discPlaying = true; setLoading(false); });
+  p.addEventListener("play", () => { if (!live()) return; els.ppBtn.textContent = "⏸"; els.ppBtn.setAttribute("aria-label", "Pause"); });
+  for (const ev of ["pause", "ended"]) p.addEventListener(ev, () => {
+    if (!live()) return;
+    discPlaying = false;
+    els.ppBtn.textContent = "▶"; els.ppBtn.setAttribute("aria-label", "Play");
+  });
+  // mid-track buffering: spin the disc faster (no text), settle once audio resumes
+  p.addEventListener("waiting", () => { if (live() && currentRecord) setLoading(true); });
+  p.addEventListener("loadstart", () => {
+    if (!live()) return;
+    els.seekFill.style.width = "0%"; els.ptime.textContent = "0:00"; els.pdur.textContent = "0:00";
+  });
+  p.addEventListener("loadedmetadata", () => { if (!live()) return; els.pdur.textContent = fmtTime(p.duration); updateSeekAria(); });
+  p.addEventListener("timeupdate", () => {
+    if (!live()) return;
+    const d = p.duration || 0;
+    els.seekFill.style.width = (d ? (p.currentTime / d) * 100 : 0) + "%";
+    els.ptime.textContent = fmtTime(p.currentTime);
+    updateSeekAria();
+  });
+}
+wireAudio(els.player);
+wireAudio(standby);
 
 function fmtTime(s) {
   if (!isFinite(s) || s < 0) return "0:00";
@@ -355,18 +382,6 @@ function updateSeekAria() {
 }
 els.ppBtn.addEventListener("click", () => {
   if (els.player.paused) els.player.play().catch(() => {}); else els.player.pause();
-});
-els.player.addEventListener("play", () => { els.ppBtn.textContent = "⏸"; els.ppBtn.setAttribute("aria-label", "Pause"); });
-for (const ev of ["pause", "ended"]) els.player.addEventListener(ev, () => { els.ppBtn.textContent = "▶"; els.ppBtn.setAttribute("aria-label", "Play"); });
-els.player.addEventListener("loadstart", () => {
-  els.seekFill.style.width = "0%"; els.ptime.textContent = "0:00"; els.pdur.textContent = "0:00";
-});
-els.player.addEventListener("loadedmetadata", () => { els.pdur.textContent = fmtTime(els.player.duration); updateSeekAria(); });
-els.player.addEventListener("timeupdate", () => {
-  const d = els.player.duration || 0;
-  els.seekFill.style.width = (d ? (els.player.currentTime / d) * 100 : 0) + "%";
-  els.ptime.textContent = fmtTime(els.player.currentTime);
-  updateSeekAria();
 });
 let seeking = false;
 function seekTo(clientX) {
@@ -390,7 +405,7 @@ els.seek.addEventListener("keydown", (e) => {
 });
 // Resolve on canplay/error, but also on a timeout — a stalled stream (socket opens,
 // no bytes, no error) must never leave the disc spinning and the controls disabled.
-function loadAudio(url, timeoutMs) {
+function loadAudio(p, url, timeoutMs) {
   return new Promise((resolve) => {
     let done = false;
     const finish = (ok) => { if (done) return; done = true; cleanup(); resolve(ok); };
@@ -398,13 +413,13 @@ function loadAudio(url, timeoutMs) {
     const onErr = () => finish(false);
     function cleanup() {
       clearTimeout(timer);
-      els.player.removeEventListener("canplay", onReady);
-      els.player.removeEventListener("error", onErr);
+      p.removeEventListener("canplay", onReady);
+      p.removeEventListener("error", onErr);
     }
     const timer = setTimeout(() => finish(false), timeoutMs || 18000);
-    els.player.addEventListener("canplay", onReady, { once: true });
-    els.player.addEventListener("error", onErr, { once: true });
-    els.player.src = url; els.player.load();
+    p.addEventListener("canplay", onReady, { once: true });
+    p.addEventListener("error", onErr, { once: true });
+    p.src = url; p.load();
   });
 }
 
@@ -428,12 +443,6 @@ async function loadSources() {
 }
 
 // ---- present / dig ------------------------------------------------------
-function updateStateChips(rec) {
-  if (!rec) return;
-  const kept = !!rec.downloaded, tossed = !kept && !!rec.listened;
-  els.verdictTag.textContent = kept ? "💾 kept" : (tossed ? "🗑 tossed" : "");
-  els.verdictTag.className = "state-badge" + (kept ? " kept" : tossed ? " tossed" : " hidden");
-}
 function savePending(rec) { try { localStorage.setItem(LS.pending, JSON.stringify(rec)); } catch (_) {} }
 function clearPending() { try { localStorage.removeItem(LS.pending); } catch (_) {} }
 
@@ -443,8 +452,19 @@ async function presentRecord(rec) {
   currentRecord = rec;
   els.card.classList.add("stale");        // outgoing record dims while the next one cues
   setLoading(true);
-  const ready = await loadAudio(rec.play_url);
-  if (currentRecord !== rec) return;
+  let ready;
+  if (rec.cuedEl) {                       // pre-buffered while the last record played — swap decks
+    const old = els.player;
+    old.pause(); old.removeAttribute("src"); old.load();
+    els.player = rec.cuedEl; standby = old; rec.cuedEl = null;
+    // the cued element's load events were guarded out — sync the seek UI now
+    els.seekFill.style.width = "0%"; els.ptime.textContent = "0:00";
+    els.pdur.textContent = fmtTime(els.player.duration); updateSeekAria();
+    ready = true;
+  } else {
+    ready = await loadAudio(els.player, rec.play_url);
+    if (currentRecord !== rec) return;
+  }
   setLoading(false);
   els.title.textContent = rec.title || "(untitled)";
   els.artist.textContent = rec.creator || "Unknown artist";
@@ -452,28 +472,65 @@ async function presentRecord(rec) {
   els.genre.textContent = rec.genre || "";
   els.label.textContent = rec.album ? "💿 " + rec.album : (rec.label ? "Label: " + rec.label : "");
   els.archive.href = rec.archive_url || "#";
-  // reflect any existing verdict from the log
-  const logged = LIBRARY[rec.cache_name];
-  updateStateChips(logged || rec);
   els.placeholder.classList.add("hidden");
   els.card.classList.remove("hidden", "in", "stale");
   void els.card.offsetWidth;
   els.card.classList.add("in");
+  prefetchNext();                         // start cueing the next dig while this one plays
   if (!ready) { toast("⚠️ Couldn't load that record — toss it to move on.", "err"); return; }
   els.player.play().catch(() => {});
 }
 
+// ---- next-record prefetch -------------------------------------------------
+// While a record plays, the next dig happens silently: pick a fresh record
+// from the same crate and buffer its audio on the standby element, so a
+// verdict swaps straight to it with no network wait.
+let nextUp = null;          // { rec, srcKey, el } — ready to swap in
+let prefetching = false;
+async function prefetchNext() {
+  if (prefetching) return;
+  const srcKey = els.genreSelect.value || DEFAULT_SOURCE_KEY;
+  if (nextUp && nextUp.srcKey === srcKey) return;
+  const src = SOURCES.find((s) => s.key === srcKey);
+  if (!src) return;
+  prefetching = true;
+  nextUp = null;
+  try {
+    const exclude = libExcludedKeys();
+    if (currentRecord && currentRecord.cache_name) exclude.add(currentRecord.cache_name);
+    const info = await pickRandom(src.query, src.pick, 4, exclude);
+    if (!info || els.genreSelect.value !== srcKey) return;
+    info.source = srcKey;
+    const el = standby;
+    const ok = await loadAudio(el, info.play_url);
+    // a swap or crate change mid-buffer invalidates this prefetch
+    if (ok && el === standby && els.genreSelect.value === srcKey) nextUp = { rec: info, srcKey, el };
+  } catch (_) {
+  } finally { prefetching = false; }
+}
+
 // A crate change while a dig is in flight queues one follow-up spin.
 let spinQueued = false;
-async function spin() {
+// quiet: verdict-triggered spins skip the caption — the disc effect already said it
+async function spin(quiet) {
   if (busy) return;
   spinQueued = false;
   setBusy(true);
-  setLoading(true, "🪩 digging through the crate…");
+  setLoading(true, quiet ? "" : "🪩 digging through the crate…");
   els.card.classList.add("stale");        // the old record fades back while we dig
   els.player.pause();
   try {
     const src = SOURCES.find((s) => s.key === els.genreSelect.value) || SOURCES.find((s) => s.key === DEFAULT_SOURCE_KEY);
+    // a record pre-buffered for this crate? swap straight to it — no dig wait
+    const cued = nextUp;
+    nextUp = null;
+    if (cued && cued.srcKey === src.key && !libExcludedKeys().has(cued.rec.cache_name)) {
+      cued.rec.cuedEl = cued.el;
+      if (els.toast.classList.contains("busy")) clearToast();
+      savePending(cued.rec);
+      await presentRecord(cued.rec);
+      return;
+    }
     const exclude = libExcludedKeys();
     let info = await pickRandom(src.query, src.pick, 10, exclude);
     if (!info) {
@@ -514,7 +571,6 @@ async function keep() {
   markVerdict(rec, rec.source, "keep");
   saveLocal();                                  // verdict survives even if the WAV save is abandoned
   rec.downloaded = true; rec.listened = false;
-  updateStateChips(rec);
   clearPending();
   renderLibrary();
   let note = "⚠ no sample folder set — logged on this device only.";
@@ -533,9 +589,10 @@ async function keep() {
   }
   persistLog();
   renderSourceOptions();
-  toast("✅ Kept — " + note, note[0] === "⚠" ? "err" : "ok");
+  // silent on success — the disc's keep sweep is the confirmation; only problems speak up
+  if (note[0] === "⚠") toast(note, "err"); else clearToast();
   setBusy(false);
-  spin();
+  spin(true);
 }
 
 function toss() {
@@ -547,7 +604,7 @@ function toss() {
   renderLibrary();
   persistLog();
   renderSourceOptions();
-  spin();
+  spin(true);
 }
 // no verdict buttons — K keeps, T tosses (hinted under the crate select)
 window.addEventListener("keydown", (e) => {

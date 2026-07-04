@@ -331,20 +331,6 @@ select:focus { outline: none; border-color: var(--rose); box-shadow: 0 0 0 1px r
 .toast.err { border-color: rgba(243, 160, 140, 0.45); background: rgba(243, 160, 140, 0.12); color: #f6c3b5; }
 .toast.busy { color: var(--muted); }
 
-/* ---------------- card verdict badge (kept / tossed) ---------------- */
-.statebar { display: flex; align-items: center; gap: 10px; margin: 2px 0 12px; }
-.state-badge {
-  font-size: 0.72rem; font-weight: 700; padding: 4px 10px; border-radius: var(--pill);
-}
-.state-badge.kept {
-  color: #15240f; background: linear-gradient(135deg, var(--success), #b6e0a0);
-}
-.state-badge.tossed {
-  color: var(--cream); background: rgba(122, 90, 80, 0.5);
-  border: 1px solid rgba(243, 160, 140, 0.35);
-}
-.state-badge.hidden { display: none; }
-
 /* ---------------- crate log (persistent library) ---------------- */
 .library { margin-top: 40px; }
 .library h3 {
