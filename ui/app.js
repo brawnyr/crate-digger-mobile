@@ -11,11 +11,13 @@
 const invoke = window.__TAURI__.core.invoke;
 const LS = { log: "cd_log_cache", pending: "cd_pending" };
 
-// One crate, no picker. Every pool we used to split across crates is unioned
-// here into a single well: warm LP-era soul/blues/funk/soul-jazz + psychedelic
-// soul, plus the soul-jazz vocal legends by name. One crate means no overlap
-// between crates, which is the whole point — the "records left" count is now
-// exact (pool − everything you've judged), not an estimate.
+// One crate, no picker. The whole thing is tuned to one sound: creamy,
+// psychedelic, beautiful late-'60s/early-'70s soul — Nina in '69, the warm
+// smoke-to records. Half 1 is the LP well (soul/blues/funk/soul-jazz +
+// psychedelic soul); Half 2 is that era's voices by name. Not rap, not
+// mixtapes — that's a different, rougher corner of the Archive. One crate
+// means no overlap, which is the point: the "records left" count is exact
+// (pool − everything you've judged), not an estimate.
 const CRATE = {
   key: "the_good_stuff", pick: "track",
   query:
@@ -28,7 +30,10 @@ const CRATE = {
     'OR creator:"Dinah Washington" OR creator:"Gloria Lynne" OR creator:"Esther Phillips" ' +
     'OR creator:"Donny Hathaway" OR creator:"Bill Withers" OR creator:"Curtis Mayfield" ' +
     'OR creator:"Gil Scott-Heron" OR creator:"Marlena Shaw" OR creator:"Roy Ayers" ' +
-    'OR creator:"Terry Callier") AND NOT creator:Various AND NOT title:Unofficial)',
+    'OR creator:"Terry Callier" OR creator:"Shuggie Otis" OR creator:"Minnie Riperton" ' +
+    'OR creator:"Isaac Hayes" OR creator:"Al Green" OR creator:"Bobby Womack" ' +
+    'OR creator:"Labi Siffre" OR creator:"Gene McDaniels" OR creator:"Leon Thomas") ' +
+    'AND NOT creator:Various AND NOT title:Unofficial)',
 };
 
 // IA search won't page past 10k deep; rotating the sort exposes different windows.
