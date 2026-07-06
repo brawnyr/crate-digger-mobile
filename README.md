@@ -6,8 +6,9 @@ ASCII turntable, and lets you keep the good ones for sampling.
 
 ## How it works
 
-1. Pick a **crate** (a curated Internet Archive record pool) and the app digs up a
-   random record you haven't judged yet.
+1. The app digs up a random record you haven't judged yet from **the crate** — one
+   curated Internet Archive pool of warm LP-era soul, blues, funk, soul-jazz and
+   psychedelic soul, plus the soul-jazz vocal legends (Nina & co.) by name.
 2. Listen, then rule on it from the keyboard: **K** keeps it, **T** tosses it —
    the verdict plays out on the vinyl and the next record is cued up automatically.
 3. Every *keep* downloads the track, converts it to a **16-bit WAV**, and drops it

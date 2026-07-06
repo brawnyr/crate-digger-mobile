@@ -304,20 +304,21 @@ audio#player { display: none; }
   border: 1px solid var(--glass-line); border-radius: var(--r-xs);
   padding: 1px 7px; background: rgba(20, 11, 5, 0.5);
 }
-.genre {
-  color: var(--muted); font-size: 0.82rem; font-weight: 600;
-  display: flex; align-items: center; gap: 8px;
+.crate-line {
+  margin: 0; color: var(--muted); font-size: 0.82rem; font-weight: 600;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   text-shadow: 0 1px 8px rgba(20, 11, 5, 0.5);
 }
-.genre-tag { color: var(--latte); letter-spacing: 0.5px; }
-select {
-  background: rgba(20, 11, 5, 0.5); color: var(--ink);
-  border: 1px solid var(--glass-line); border-radius: var(--r-sm);
-  padding: 9px 12px; font-family: var(--mono); font-size: 0.84rem; font-weight: 500;
-  cursor: pointer; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+.crate-tag { color: var(--latte); letter-spacing: 0.5px; }
+.crate-name {
+  color: var(--ink); font-weight: 700;
+  padding: 6px 12px; border-radius: var(--r-sm);
+  border: 1px solid var(--glass-line); background: rgba(20, 11, 5, 0.5);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
-select:hover { border-color: rgba(247, 236, 210, 0.3); }
-select:focus { outline: none; border-color: var(--rose); box-shadow: 0 0 0 1px rgba(238, 147, 187, 0.6); }
+/* the exact records-left tally — single crate, so it never lies */
+.crate-count { color: var(--muted-dim); font-weight: 500; font-size: 0.78rem; }
+.crate-count:not(:empty)::before { content: "· "; }
 
 /* ---------------- toast ---------------- */
 .toast {

@@ -30,6 +30,7 @@ stable or existing logs orphan.
 ## Conventions
 
 - Keep code minimal — prefer deleting over abstracting; comments explain why, not what.
-- Curation happens in `SOURCES` (the record pools), not in filters.
+- Curation happens in the single `CRATE` query (the record pool), not in filters.
+  One crate, no picker — that's what keeps the "records left" count exact.
 - Single branch (`main`), no PRs; a Stop hook auto-commits and pushes.
 - CSP lives in `tauri.conf.json`, not a meta tag.

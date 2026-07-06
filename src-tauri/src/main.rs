@@ -120,6 +120,10 @@ async fn ia_json(url: String) -> Result<serde_json::Value, String> {
 }
 
 // ---- keep: MP3 → 16-bit PCM WAV --------------------------------------------
+// A ceiling on the MP3 we'll pull into memory. 80 MB is a full LP side at 320
+// kbps with room to spare; anything past it is a mislabeled file, not a track.
+const MAX_KEEP_BYTES: u64 = 80 * 1024 * 1024;
+
 // Decode every packet with symphonia, preserving channel count and sample rate.
 fn decode_mp3(bytes: Vec<u8>) -> Result<(u32, u16, Vec<i16>), String> {
     use symphonia::core::audio::SampleBuffer;
@@ -193,14 +197,30 @@ async fn keep_record(app: tauri::AppHandle, url: String, base_name: String) -> R
     let base: String = base_name.chars().filter(|c| !matches!(c, '/' | '\\')).collect();
     let base = if base.trim().is_empty() { "record".to_string() } else { base };
 
+    // The webview already streamed this MP3 to play it, but that buffer lives in
+    // the WebView2 cache, which Rust can't reach — so a keep re-fetches the file.
     // reqwest follows the redirect to *.us.archive.org by default;
-    // a generous deadline since whole MP3s can take a while on a slow mirror
+    // a generous deadline since whole MP3s can take a while on a slow mirror.
     let client = http_client(Duration::from_secs(180));
-    let resp = client.get(&url).send().await.map_err(|e| format!("download failed: {e}"))?;
+    let mut resp = client.get(&url).send().await.map_err(|e| format!("download failed: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!("download failed: HTTP {}", resp.status()));
     }
-    let bytes = resp.bytes().await.map_err(|e| format!("download failed: {e}"))?.to_vec();
+    // Cap the download so a pathological file can't balloon memory (whole thing is
+    // decoded in RAM). Reject up front on Content-Length, then cap the actual read
+    // too, since a mirror can under-report or omit the length.
+    if let Some(len) = resp.content_length() {
+        if len > MAX_KEEP_BYTES {
+            return Err("that track is too large to keep".to_string());
+        }
+    }
+    let mut bytes: Vec<u8> = Vec::new();
+    while let Some(chunk) = resp.chunk().await.map_err(|e| format!("download failed: {e}"))? {
+        if bytes.len() as u64 + chunk.len() as u64 > MAX_KEEP_BYTES {
+            return Err("that track is too large to keep".to_string());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
 
     // decode + write off the async runtime — big files take a few seconds
     tauri::async_runtime::spawn_blocking(move || {
