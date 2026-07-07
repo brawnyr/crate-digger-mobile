@@ -4,3 +4,6 @@
 # Rust build artifacts
 src-tauri/target/
 src-tauri/gen/schemas/
+
+# Local debug/verify screenshots
+screenshots/

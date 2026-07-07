@@ -1,8 +1,8 @@
-/* Coffee & Milk swirl behind the app — the FULL-BRIGHT homepage finish
-   (2026-07-07, user call: the ported app had inherited the mobile PWA's
-   darkened variant and read flat). Legibility comes from the card glass and
-   the vignette, not from dimming the whole sea. Kept external so the page
-   can run under a strict Content-Security-Policy (script-src 'self'). */
+/* Dark purple psychedelic swirl behind the app (2026-07-07, user call:
+   pinks/light tones muddied the light text — palette must be all-dark,
+   psychedelia from hue movement, not brightness). Same swirl engine.
+   Kept external so the page can run under a strict Content-Security-Policy
+   (script-src 'self'). */
 const FRAG = `
   precision highp float;
   uniform vec2 uRes; uniform float uT;
@@ -20,20 +20,22 @@ const FRAG = `
     return v;
   }
   vec3 pal(float x){
-    vec3 cream =vec3(.96,.90,.78);
-    vec3 latte =vec3(.87,.69,.45);
-    vec3 caramel=vec3(.73,.42,.22);
-    vec3 rose  =vec3(.93,.56,.72);
-    vec3 violet=vec3(.52,.33,.76);
-    vec3 coffee=vec3(.18,.11,.08);
+    /* all-dark on purpose: light text sits on this, so nothing bright allowed.
+       warm half (wine/ember) plays against the cool violets — heat, no light. */
+    vec3 wine   =vec3(.44,.10,.22);
+    vec3 ember  =vec3(.42,.16,.10);
+    vec3 magma  =vec3(.48,.12,.34);
+    vec3 violet =vec3(.34,.14,.58);
+    vec3 indigo =vec3(.14,.09,.44);
+    vec3 abyss  =vec3(.08,.03,.12);
     x=fract(x)*6.;
-    vec3 c=cream;
-    c=mix(c,latte,  clamp(x-0.,0.,1.));
-    c=mix(c,caramel,clamp(x-1.,0.,1.));
-    c=mix(c,rose,   clamp(x-2.,0.,1.));
-    c=mix(c,violet, clamp(x-3.,0.,1.));
-    c=mix(c,coffee, clamp(x-4.,0.,1.));
-    c=mix(c,cream,  clamp(x-5.,0.,1.));
+    vec3 c=wine;
+    c=mix(c,ember,  clamp(x-0.,0.,1.));
+    c=mix(c,magma,  clamp(x-1.,0.,1.));
+    c=mix(c,violet, clamp(x-2.,0.,1.));
+    c=mix(c,indigo, clamp(x-3.,0.,1.));
+    c=mix(c,abyss,  clamp(x-4.,0.,1.));
+    c=mix(c,wine,   clamp(x-5.,0.,1.));
     return c;
   }
   void main(){
@@ -43,10 +45,10 @@ const FRAG = `
     float f=fbm(uv*2.2+2.6*q+vec2(t*.5,-t*.3));
     float idx=f*.9 + t*.18 + length(uv)*.18 + q.x*.30;
     vec3 col=pal(idx);
-    col*=mix(.55,1.12,smoothstep(.05,.95,f));  /* highlights overshoot — the milk glows */
+    col*=mix(.50,1.,smoothstep(.05,.95,f));    /* no overshoot — text must stay legible */
     float sheen=pow(smoothstep(.62,1.,f),3.);
-    col+=vec3(.96,.90,.78)*sheen*.18;
-    col=floor(col*10.+.5)/10.;                 /* chunky coffee-and-milk banding */
+    col+=vec3(.50,.16,.30)*sheen*.20;          /* warm magenta sheen: color, not brightness */
+    col=floor(col*12.+.5)/12.;                 /* chunky poster banding */
     float vg=smoothstep(1.35,.35,length(uv));
     col*=mix(.55,1.,vg);                        /* vignette for text contrast */
     gl_FragColor=vec4(col,1.);
