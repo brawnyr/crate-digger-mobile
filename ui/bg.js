@@ -1,6 +1,8 @@
-/* Coffee & Milk swirl behind the app, tuned dark so text stays legible.
-   Kept external so the page can run under a strict Content-Security-Policy
-   (script-src 'self', no inline scripts). */
+/* Coffee & Milk swirl behind the app — the FULL-BRIGHT homepage finish
+   (2026-07-07, user call: the ported app had inherited the mobile PWA's
+   darkened variant and read flat). Legibility comes from the card glass and
+   the vignette, not from dimming the whole sea. Kept external so the page
+   can run under a strict Content-Security-Policy (script-src 'self'). */
 const FRAG = `
   precision highp float;
   uniform vec2 uRes; uniform float uT;
@@ -41,13 +43,12 @@ const FRAG = `
     float f=fbm(uv*2.2+2.6*q+vec2(t*.5,-t*.3));
     float idx=f*.9 + t*.18 + length(uv)*.18 + q.x*.30;
     vec3 col=pal(idx);
-    col*=mix(.40,1.0,smoothstep(.05,.95,f));
+    col*=mix(.55,1.12,smoothstep(.05,.95,f));  /* highlights overshoot — the milk glows */
     float sheen=pow(smoothstep(.62,1.,f),3.);
-    col+=vec3(.96,.90,.78)*sheen*.15;
+    col+=vec3(.96,.90,.78)*sheen*.18;
     col=floor(col*10.+.5)/10.;                 /* chunky coffee-and-milk banding */
-    float vg=smoothstep(1.5,.28,length(uv));
-    col*=mix(.32,1.,vg);                        /* vignette for text contrast */
-    col*=0.78;
+    float vg=smoothstep(1.35,.35,length(uv));
+    col*=mix(.55,1.,vg);                        /* vignette for text contrast */
     gl_FragColor=vec4(col,1.);
   }`;
 const VERT = 'attribute vec2 aP;void main(){gl_Position=vec4(aP,0.,1.);}';
