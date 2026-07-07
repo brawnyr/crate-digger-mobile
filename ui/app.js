@@ -573,7 +573,7 @@ async function keep() {
   const rec = currentRecord;
   els.player.pause();
   discEffect("keep");
-  setBusy(true, "💾 Keeping it…");
+  setBusy(true);   // no caption — the disc's keep sweep IS the save indicator
   markVerdict(rec, rec.source, "keep");
   saveLocal();                                  // verdict survives even if the WAV save is abandoned
   rec.downloaded = true; rec.listened = false;
@@ -582,7 +582,6 @@ async function keep() {
   let note = "⚠ no sample folder set — logged on this device only.";
   if (sampleDir) {                              // write a WAV into the sample folder
     try {
-      setBusy(true, "💾 Converting to WAV → your sample folder…");
       const fn = await invoke("keep_record", {
         url: rec.play_url, baseName: safeName((rec.title || "") + " - " + (rec.creator || "")),
       });
