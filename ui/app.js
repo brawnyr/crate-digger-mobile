@@ -440,6 +440,7 @@ function clearPending() { try { localStorage.removeItem(LS.pending); } catch (_)
 // title appearing IS the "ready" signal, so play always works the moment you see it.
 async function presentRecord(rec) {
   currentRecord = rec;
+  retryDelay = 6000;                      // a landed record rearms the fast retry
   els.card.classList.add("stale");        // outgoing record dims while the next one cues
   setLoading(true);
   let ready;
@@ -495,9 +496,29 @@ async function prefetchNext() {
   } finally { prefetching = false; }
 }
 
+// Boot-dig resilience: the Archive has bad minutes, and a failed dig with
+// nothing on the deck used to strand the app at "warming up" forever (the
+// only other spin() callers are verdicts, which need a record). Retry on a
+// doubling backoff until something lands; the placeholder is click-to-dig.
+let retryTimer = null, retryDelay = 6000, crateDone = false;
+function scheduleRetry() {
+  if (retryTimer || currentRecord || crateDone) return;
+  els.placeholder.innerHTML =
+    '<span class="ph-lead">◇ The Archive is being slow…</span>' +
+    '<span class="ph-sub">digging again in a moment — or click here to dig now</span>';
+  retryTimer = setTimeout(() => { retryTimer = null; spin(); }, retryDelay);
+  retryDelay = Math.min(retryDelay * 2, 60000);
+}
+els.placeholder.addEventListener("click", () => {
+  if (currentRecord || busy || crateDone) return;
+  if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+  spin();
+});
+
 // quiet: verdict-triggered spins skip the caption — the disc effect already said it
 async function spin(quiet) {
   if (busy) return;
+  if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
   setBusy(true);
   setLoading(true, quiet ? "" : "🪩 digging through the crate…");
   els.card.classList.add("stale");        // the old record fades back while we dig
@@ -528,13 +549,17 @@ async function spin(quiet) {
     savePending(info);
     await presentRecord(info);
   } catch (e) {
-    toast("⚠️ " + e.message + " — try again in a moment.", "err");
+    // with a record still on the deck a failed dig is just a toast; with an
+    // empty deck it must self-heal, or the app is a brick until relaunch
+    if (currentRecord) toast("⚠️ " + e.message + " — try again in a moment.", "err");
+    else scheduleRetry();
   } finally {
     els.card.classList.remove("stale");
     setLoading(false); setBusy(false);
   }
 }
 function showExhausted(msg) {
+  crateDone = true;                       // a finished crate must not retry-dig
   currentRecord = null; clearPending(); els.player.pause();
   els.card.classList.add("hidden"); els.card.classList.remove("in");
   els.placeholder.classList.remove("hidden");
