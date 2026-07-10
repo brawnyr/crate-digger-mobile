@@ -3,23 +3,23 @@
    Coffee-and-milk swirl behind frosted glass; JetBrains Mono, warm color wheel.
    ========================================================================== */
 :root {
-  /* CREAM CLOUDS — hazy off-white living brew, espresso ink */
-  --abyss: #f2ecdd;       /* base of the haze */
-  --cream: #4a2a12;       /* emphasis text — espresso on the cream */
-  --latte: #a06c2e;
-  --rust: #a85e2e;
-  --rose: #c65a92;
-  --violet: #7e54b8;
-  /* ink on the haze */
-  --ink: #241408;
-  --body: #3c2412;
-  --muted: #6e4a2c;
-  --muted-dim: #7e5a38;
+  /* PIXEL LAYERS — flat psychedelic bands, chunky pixels, cream ink */
+  --abyss: #2b160a;
+  --cream: #f7ecd2;
+  --latte: #e6b06a;
+  --rust: #b86a36;
+  --rose: #ee93bb;
+  --violet: #9a6fd6;
+  /* ink on the bands */
+  --ink: #f8efdd;
+  --body: #e7d8bf;
+  --muted: #cdb693;
+  --muted-dim: #b6a079;
   /* glass */
-  --glass: rgba(255, 252, 244, 0.5);
-  --glass-soft: rgba(255, 252, 244, 0.34);
-  --glass-line: rgba(43, 26, 12, 0.16);
-  --glass-line-soft: rgba(43, 26, 12, 0.09);
+  --glass: rgba(24, 12, 6, 0.5);
+  --glass-soft: rgba(28, 15, 8, 0.38);
+  --glass-line: rgba(247, 236, 210, 0.16);
+  --glass-line-soft: rgba(247, 236, 210, 0.10);
   /* semantic */
   --success: #8fd6a0;
   /* radii */
@@ -59,7 +59,7 @@ body {
   mix-blend-mode: soft-light;
 }
 .scan {
-  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0 2px, rgba(60, 36, 18, 0.05) 2px 4px);
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0 2px, rgba(15, 9, 3, 0.16) 2px 4px);
   opacity: 0.4;
 }
 .grain {
