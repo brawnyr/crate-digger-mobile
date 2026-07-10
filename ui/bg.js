@@ -1,6 +1,5 @@
-/* WHITE BLANKNESS — started from scratch 2026-07-10. The background is a blank
-   warm white; whatever the brew becomes next grows from here.
-   External file for CSP (no inline scripts). */
+/* Flat brown background — started from scratch 2026-07-10; rebuilding from a
+   plain rich coffee brown. External file for CSP (no inline scripts). */
 (function () {
   const cvs = document.getElementById('bg');
   if (!cvs) return;
@@ -8,7 +7,7 @@
   if (!ctx) return;
   function paint() {
     cvs.width = 1; cvs.height = 1;      /* one pixel, CSS scales it up */
-    ctx.fillStyle = '#fbf9f3';
+    ctx.fillStyle = '#311d0e';
     ctx.fillRect(0, 0, 1, 1);
   }
   paint();
