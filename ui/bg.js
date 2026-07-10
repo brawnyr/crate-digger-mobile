@@ -1,94 +1,104 @@
-/* "pbrew" — dark coffee-and-milk swirl (dim, deep vignette, sheen); don't brighten. External file for CSP (no inline scripts). */
-const FRAG = `
-  precision highp float;
-  uniform vec2 uRes; uniform float uT;
-  float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);}
-  float noise(vec2 p){
-    vec2 i=floor(p),f=fract(p);
-    vec2 u=f*f*(3.-2.*f);
-    return mix(mix(hash(i),hash(i+vec2(1.,0.)),u.x),
-               mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),u.x),u.y);
-  }
-  float fbm(vec2 p){
-    float v=0.,a=.5;
-    mat2 m=mat2(1.6,1.2,-1.2,1.6);
-    for(int i=0;i<5;i++){v+=a*noise(p);p=m*p;a*=.5;}
-    return v;
-  }
-  vec3 pal(float x){
-    vec3 cream =vec3(.96,.90,.78);
-    vec3 latte =vec3(.87,.69,.45);
-    vec3 caramel=vec3(.73,.42,.22);
-    vec3 rose  =vec3(.93,.56,.72);
-    vec3 violet=vec3(.52,.33,.76);
-    vec3 coffee=vec3(.18,.11,.08);
-    x=fract(x)*6.;
-    vec3 c=cream;
-    c=mix(c,latte,  clamp(x-0.,0.,1.));
-    c=mix(c,caramel,clamp(x-1.,0.,1.));
-    c=mix(c,rose,   clamp(x-2.,0.,1.));
-    c=mix(c,violet, clamp(x-3.,0.,1.));
-    c=mix(c,coffee, clamp(x-4.,0.,1.));
-    c=mix(c,cream,  clamp(x-5.,0.,1.));
-    return c;
-  }
-  void main(){
-    vec2 uv=(gl_FragCoord.xy-.5*uRes)/min(uRes.x,uRes.y);
-    float t=uT*.03;
-    vec2 q=vec2(fbm(uv*1.6+vec2(0.,t)), fbm(uv*1.6+vec2(5.2,t*.8)));
-    float f=fbm(uv*2.2+2.6*q+vec2(t*.5,-t*.3));
-    float idx=f*.9 + t*.18 + length(uv)*.18 + q.x*.30;
-    vec3 col=pal(idx);
-    col*=mix(.40,1.0,smoothstep(.05,.95,f));
-    float sheen=pow(smoothstep(.62,1.,f),3.);
-    col+=vec3(.96,.90,.78)*sheen*.15;
-    col=floor(col*10.+.5)/10.;                 /* chunky coffee-and-milk banding */
-    float vg=smoothstep(1.5,.28,length(uv));
-    col*=mix(.32,1.,vg);                        /* vignette for text contrast */
-    col*=0.78;
-    gl_FragColor=vec4(col,1.);
-  }`;
-const VERT = 'attribute vec2 aP;void main(){gl_Position=vec4(aP,0.,1.);}';
+/* ASCII BREW — milk meeting coffee, spinning like a platter. Same brew as the
+   homepage, personalized for Crate Digger: the whole field turns like vinyl and
+   faint concentric grooves circle through the haze. Density picks the layer:
+   sparse = dark roast, mids = caramel, crests = cream (see style.css .brew).
+   External file for CSP (no inline scripts). */
 (function () {
-  const cvs = document.getElementById('bg');
-  const gl = cvs.getContext('webgl', { antialias: false, alpha: false, depth: false, stencil: false, powerPreference: 'low-power' });
-  if (!gl) return;
-  function shader(type, src) {
-    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
-    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error(gl.getShaderInfoLog(s)); return null; }
-    return s;
+  const layers = [document.getElementById('coffee'),
+                  document.getElementById('caramel'),
+                  document.getElementById('cream')];
+  if (layers.some(l => !l)) return;
+  const SEED = Math.random() * 1e3;      /* every session spins a different record */
+
+  /* density ramp, sparse → dense; codey glyphs ordered by ink */
+  const RAMP = "  ..''\":;~-_=<>!ic(){}[]?*7fjzsL/\\|neoahk4XPBS%&#$@";
+  const N = RAMP.length - 1;
+  const T1 = .16, T2 = .40;              /* density cuts: roast | caramel | cream */
+
+  /* value noise + fbm */
+  function hash(x, y) { const s = Math.sin(x * 127.1 + y * 311.7 + SEED) * 43758.5453; return s - Math.floor(s); }
+  function noise(x, y) {
+    const ix = Math.floor(x), iy = Math.floor(y), fx = x - ix, fy = y - iy;
+    const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+    const a = hash(ix, iy), b = hash(ix + 1, iy), c = hash(ix, iy + 1), d = hash(ix + 1, iy + 1);
+    return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
   }
-  const vs = shader(gl.VERTEX_SHADER, VERT), fs = shader(gl.FRAGMENT_SHADER, FRAG);
-  if (!vs || !fs) return;
-  const prog = gl.createProgram();
-  gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
-  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(prog)); return; }
-  gl.useProgram(prog);
-  const buf = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  const aP = gl.getAttribLocation(prog, 'aP');
-  gl.enableVertexAttribArray(aP); gl.vertexAttribPointer(aP, 2, gl.FLOAT, false, 0, 0);
-  const uRes = gl.getUniformLocation(prog, 'uRes'), uT = gl.getUniformLocation(prog, 'uT');
-  const PX = 6;
-  function resize() {
-    const w = Math.max(1, Math.round(cvs.clientWidth / PX)), h = Math.max(1, Math.round(cvs.clientHeight / PX));
-    if (cvs.width !== w || cvs.height !== h) { cvs.width = w; cvs.height = h; gl.viewport(0, 0, w, h); }
+  function fbm(x, y) { return noise(x, y) * .65 + noise(x * 2.13 + 7.7, y * 2.13 + 3.1) * .35; }
+
+  /* grid sizing — measured from the real glyph box; re-measured when the
+     webfont lands, since JetBrains Mono arrives async */
+  let cols = 0, rows = 0, cw = 7.8, ch = 13;
+  function measure() {
+    const probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre';
+    probe.className = 'brew';
+    probe.textContent = 'M'.repeat(100);
+    document.body.appendChild(probe);
+    cw = probe.getBoundingClientRect().width / 100 || 7.8;
+    document.body.removeChild(probe);
   }
-  function render(t) { resize(); gl.uniform2f(uRes, cvs.width, cvs.height); gl.uniform1f(uT, t); gl.drawArrays(gl.TRIANGLES, 0, 3); }
+  function size() {
+    cols = Math.ceil(innerWidth / cw) + 1;
+    rows = Math.ceil(innerHeight / ch) + 1;
+  }
+
+  /* one frame of the brew */
+  const S = .055;      /* field scale — bigger = tighter billows           */
+  const WARP = 2.1;    /* how hard the milk folds into the coffee          */
+  const SPIN = .05;    /* rad/s — the platter's steady turn                */
+  const STIR = .45;    /* extra twist near the spindle                     */
+  const GROOVE = .045; /* faint concentric ripples, like vinyl grooves     */
+  const out = [[], [], []];
+  function frame(t) {
+    const asp = cw / ch;            /* keep the noise isotropic on a non-square grid */
+    const cx = cols / 2, cy = rows / 2;
+    const rmax = Math.hypot(cx * asp, cy);
+    out[0].length = out[1].length = out[2].length = 0;
+    for (let y = 0; y < rows; y++) {
+      let r0 = '', r1 = '', r2 = '';
+      for (let x = 0; x < cols; x++) {
+        const dx = (x - cx) * asp, dy = y - cy;
+        const r = Math.hypot(dx, dy) / rmax;
+        /* the platter: steady rotation everywhere, a touch more at the spindle */
+        const th = t * SPIN + STIR * Math.exp(-2.4 * r * r);
+        const co = Math.cos(th), si = Math.sin(th);
+        const nx = (dx * co - dy * si) * S, ny = (dx * si + dy * co) * S;
+        /* the pour: milk folding through coffee, slow and hazy */
+        const qx = noise(nx + t * .06, ny), qy = noise(nx + 5.2, ny - t * .04);
+        let v = fbm(nx + WARP * qx + t * .025, ny + WARP * qy - t * .017);
+        /* grooves: concentric ripples riding the mid-radii, drifting inward */
+        v += GROOVE * Math.sin(r * rmax * 1.6 - t * .9) * r * (1 - r) * 4;
+        /* vignette: the brew fades into the dark rim */
+        v *= 1.12 - .85 * r * r;
+        const d = v * v;
+        const g = RAMP[Math.max(0, Math.min(N, (d * (N + 6)) | 0))];
+        if (d < T1) { r0 += g; r1 += ' '; r2 += ' '; }
+        else if (d < T2) { r0 += ' '; r1 += g; r2 += ' '; }
+        else { r0 += ' '; r1 += ' '; r2 += g; }
+      }
+      out[0].push(r0); out[1].push(r1); out[2].push(r2);
+    }
+    for (let i = 0; i < 3; i++) layers[i].textContent = out[i].join('\n');
+  }
+
+  /* loop */
   const RM = matchMedia('(prefers-reduced-motion:reduce)');
-  const FRAME = 1000 / 30;
+  const FRAME = 1000 / 24;              /* ASCII wants a chunky cadence */
   let raf = null, last = 0, t0 = performance.now();
   function loop(now) {
     raf = requestAnimationFrame(loop);
     if (now - last < FRAME) return; last = now;
-    render((now - t0) / 1000);
+    frame((now - t0) / 1000);
   }
   function start() { if (!raf && !RM.matches) raf = requestAnimationFrame(loop); }
   function stop() { if (raf) { cancelAnimationFrame(raf); raf = null; } }
-  function apply() { if (RM.matches) { stop(); render(12.0); } else start(); }
-  apply();
-  document.addEventListener('visibilitychange', () => document.hidden ? stop() : apply());
-  RM.addEventListener('change', apply);
-  window.addEventListener('resize', () => { if (RM.matches) render(12.0); });
+
+  measure(); size();
+  if (RM.matches) frame(8); else start();
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => { measure(); size(); if (RM.matches) frame(8); });
+  }
+  window.addEventListener('resize', () => { size(); if (RM.matches) frame(8); });
+  document.addEventListener('visibilitychange', () => document.hidden ? stop() : start());
+  RM.addEventListener('change', () => { stop(); RM.matches ? frame(8) : start(); });
 })();
