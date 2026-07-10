@@ -1,7 +1,7 @@
-/* PIXEL LAYERS — a pixel-art shader: flat psychedelic color bands with wavy
-   boundaries, chunky 6px pixels, Bayer-dithered edges where bands meet. The
-   bands undulate and slowly scroll upward, cycling through the palette.
-   Simple: one noise call per pixel, one palette lookup. No gradients.
+/* PIXEL FALLS — a pixel-art shader: flat psychedelic bands with wavy dithered
+   edges, and a waterfall down the middle — the colors turn vertical there and
+   cascade in streaks, melting into the layered pools at its edges. Chunky 6px
+   pixels, two noise calls per pixel, one palette lookup. No gradients.
    External file for CSP (no inline scripts). */
 (function () {
   const cvs = document.getElementById('bg');
@@ -61,17 +61,29 @@
   const WAVE = 1.4;    /* boundary wobble, in band-heights               */
   const SX = .035;     /* wave frequency across the screen               */
   const SY = 2.6;      /* how differently each band waves                */
-  const SCROLL = .05;  /* bands/s — the stack slowly migrates upward     */
+  const SCROLL = .05;  /* bands/s — the pools slowly migrate upward      */
+  const FALL = 1.1;    /* bands/s — how fast the waterfall pours         */
+  const FALLW = .16;   /* waterfall half-width, as a fraction of screen  */
   function frame(t) {
     const px = img.data;
+    const cx = ow / 2;
     let o = 0;
     for (let y = 0; y < oh; y++) {
       const u = y / oh;
       const brow = (y & 7) << 3;
+      /* the fall widens a touch toward the bottom, like spray */
+      const halfw = ow * (FALLW + .05 * u);
       for (let x = 0; x < ow; x++) {
-        /* band value: vertical position + its own wave + the slow scroll */
+        /* pools: horizontal bands, each boundary its own lazy wave */
         const w = noise(x * SX, u * SY + t * .05);
-        const v = u * BANDS + WAVE * w + t * SCROLL + BAYER[brow | (x & 7)];
+        const vBand = u * BANDS + WAVE * w + t * SCROLL;
+        /* falls: vertical streaks pouring down the center */
+        const s = noise(x * .22, u * 2.4 - t * FALL);
+        const vFall = u * 5 - t * FALL * 1.6 + 2.2 * s + x * .045;
+        /* melt between them by distance from the center column */
+        const dxx = Math.abs(x - cx) / halfw;
+        const m = 1 / (1 + dxx * dxx * dxx * dxx * dxx * dxx);   /* soft plateau */
+        const v = vBand + (vFall - vBand) * m + BAYER[brow | (x & 7)];
         const c = PAL[((v % L) + L) % L | 0];
         px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2];
         o += 4;
