@@ -1,11 +1,11 @@
-/* SOFT FALLS — glowing mid-tone psychedelia that breathes. A gentle waterfall
-   of color down the center melting into slow layered pools at the sides. The
-   palette is a closed loop of close neighbors (sand → peach → coral → pink →
-   mauve → lavender → plum → back) so every dithered seam reads as glow, never
-   contrast. Two breaths run underneath: the whole field's brightness swells
-   and relaxes (~35s), and the pool-waves deepen and flatten (~50s).
-   3px pixels; noise on a coarse lattice, bilinearly lifted, Bayer-dithered.
-   External file for CSP (no inline scripts). */
+/* SOFT FALLS — deep glowing psychedelia that breathes. A gentle waterfall of
+   color down the center melting into slow layered pools at the sides. The
+   palette is a closed loop of close-luminance neighbors (purple → plum →
+   wine → crimson → red-orange → burnt orange → rust → mauve → back) so every
+   dithered seam reads as glow, never contrast. Two breaths run underneath:
+   the field's brightness swells and relaxes (~35s), the pool-waves deepen
+   and flatten (~50s). 3px pixels; noise on a coarse lattice, bilinearly
+   lifted, Bayer-dithered. External file for CSP (no inline scripts). */
 (function () {
   const cvs = document.getElementById('bg');
   if (!cvs) return;
@@ -13,16 +13,17 @@
   if (!ctx) return;
   const SEED = Math.random() * 1e3;
 
-  /* the loop of neighbors — all mid-brightness, warm, no darks, no neon */
+  /* the loop of neighbors — deep psychedelia: purples, wines, reds, burnt
+     oranges. still close-luminance neighbors so every seam glows, never pops */
   const PAL = [
-    [0xe6, 0xc2, 0x96],   /* warm sand      */
-    [0xe8, 0xac, 0x8e],   /* peach          */
-    [0xe2, 0x9a, 0x9e],   /* coral          */
-    [0xdd, 0x93, 0xb4],   /* dusty pink     */
-    [0xc9, 0x8c, 0xc4],   /* mauve          */
-    [0xb2, 0x92, 0xd2],   /* warm lavender  */
-    [0xc7, 0x9d, 0xbe],   /* soft plum      */
-    [0xdc, 0xb2, 0xa0],   /* rosy sand      */
+    [0x46, 0x22, 0x66],   /* deep purple    */
+    [0x60, 0x26, 0x66],   /* plum           */
+    [0x7c, 0x28, 0x50],   /* wine           */
+    [0x92, 0x2e, 0x38],   /* crimson        */
+    [0xa4, 0x42, 0x28],   /* red-orange     */
+    [0xb4, 0x5c, 0x22],   /* burnt orange   */
+    [0x8e, 0x46, 0x40],   /* rust bridge    */
+    [0x64, 0x30, 0x60],   /* mauve bridge   */
   ];
   const L = PAL.length;
   const lut = new Uint8Array(L * 3);      /* PAL × the breath, rebuilt per frame */

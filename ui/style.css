@@ -3,23 +3,23 @@
    Coffee-and-milk swirl behind frosted glass; JetBrains Mono, warm color wheel.
    ========================================================================== */
 :root {
-  /* SOFT FALLS — glowing mid-tone psychedelia, breathing; espresso ink */
-  --abyss: #e2bfa4;
-  --cream: #4a2a12;       /* emphasis text — espresso on the glow */
-  --latte: #9a6428;
-  --rust: #a85e2e;
-  --rose: #b44e82;
-  --violet: #7550ae;
+  /* SOFT FALLS, deep cut — purples/wines/reds/oranges; cream ink on dark glass */
+  --abyss: #2a1430;
+  --cream: #f7ecd2;
+  --latte: #e6b06a;
+  --rust: #c97a3e;
+  --rose: #ee93bb;
+  --violet: #9a6fd6;
   /* ink on the glow */
-  --ink: #2e1a0c;
-  --body: #402612;
-  --muted: #6e4a2c;
-  --muted-dim: #7a5636;
+  --ink: #f8efdd;
+  --body: #ecdcc8;
+  --muted: #d0b89a;
+  --muted-dim: #bda183;
   /* glass */
-  --glass: rgba(255, 248, 238, 0.42);
-  --glass-soft: rgba(255, 248, 238, 0.28);
-  --glass-line: rgba(46, 26, 12, 0.18);
-  --glass-line-soft: rgba(46, 26, 12, 0.10);
+  --glass: rgba(22, 10, 22, 0.5);
+  --glass-soft: rgba(24, 12, 24, 0.4);
+  --glass-line: rgba(247, 236, 210, 0.16);
+  --glass-line-soft: rgba(247, 236, 210, 0.10);
   /* semantic */
   --success: #8fd6a0;
   /* radii */
@@ -59,8 +59,18 @@ body {
   mix-blend-mode: soft-light;
 }
 .scan {
-  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0 2px, rgba(46, 26, 12, 0.05) 2px 4px);
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0 2px, rgba(10, 4, 12, 0.14) 2px 4px);
   opacity: 0.4;
+}
+
+/* every text block sits behind frosted glass */
+header, .digbar, .verdict, .library, .shutdown-hint {
+  background: var(--glass-soft);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  border: 1px solid var(--glass-line-soft);
+  border-radius: var(--r-xl);
+  padding: 18px 24px;
 }
 .grain {
   opacity: 0.06; mix-blend-mode: soft-light;
