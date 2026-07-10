@@ -1,7 +1,7 @@
-/* PIXEL BREW — milk meeting coffee, spinning like a platter. The brew field is
-   computed on a coarse lattice (cheap), then rendered at fine 3px pixels with
-   bilinear smoothing + 8x8 Bayer ordered dithering: retro speckle instead of
-   flat posterized bands. Platter spin, spindle stir, mid-ring grooves, dark rim.
+/* PIXEL BREW — abstract psychedelic coffee haze. Bright and creamy, with dark
+   coffee glooping and floating up through the milk; a whisper of rose in the
+   hottest cream. Field on a coarse lattice, rendered at 3px pixels with
+   bilinear smoothing + 8x8 Bayer ordered dithering.
    External file for CSP (no inline scripts). */
 (function () {
   const cvs = document.getElementById('bg');
@@ -20,13 +20,16 @@
   }
   function fbm(x, y) { return noise(x, y) * .65 + noise(x * 2.13 + 7.7, y * 2.13 + 3.1) * .35; }
 
-  /* brew palette LUT: density 0..1 → black coffee → roast → caramel → latte → cream */
+  /* brew palette LUT: creamy and bright, coffee lives in the gloops.
+     density 0..1 → coffee → caramel → latte → cream → rose-milk shimmer → cream */
   const STOPS = [
-    [0.00, 0x0f, 0x08, 0x03],
-    [0.18, 0x3a, 0x20, 0x10],
-    [0.42, 0x96, 0x60, 0x2a],
-    [0.72, 0xd9, 0xb0, 0x77],
-    [1.00, 0xef, 0xd9, 0xa8],
+    [0.00, 0x2b, 0x16, 0x0c],   /* the coffee gloop                */
+    [0.22, 0x6e, 0x3a, 0x1c],
+    [0.42, 0xb8, 0x7a, 0x3e],   /* bright caramel                  */
+    [0.60, 0xe0, 0xb5, 0x7e],   /* latte                           */
+    [0.78, 0xf2, 0xdc, 0xb2],   /* cream                           */
+    [0.90, 0xf0, 0xc9, 0xc4],   /* rose-milk — the psychedelic sheen */
+    [1.00, 0xf7, 0xec, 0xd2],
   ];
   const LEVELS = 16;                      /* few levels + dither = the texture */
   const LUT = new Uint8Array(LEVELS * 3);
@@ -71,11 +74,11 @@
   }
 
   /* the brew field, one sample per lattice point */
-  const S = .04;       /* field scale — bigger = tighter billows           */
-  const WARP = 2.1;    /* how hard the milk folds into the coffee          */
-  const SPIN = .05;    /* rad/s — the platter's steady turn                */
-  const STIR = .45;    /* extra twist near the spindle                     */
-  const GROOVE = .032; /* faint concentric ripples, like vinyl grooves     */
+  const S = .028;      /* field scale — small = big soft gloops            */
+  const WARP = 2.9;    /* how hard the coffee folds and gloops             */
+  const SWIRL = .04;   /* rad/s — the whole haze slowly turns              */
+  const STIR = .5;     /* extra twist near the center                      */
+  const RISE = .045;   /* the gloop floats upward, like coffee in milk     */
   function computeField(t) {
     const cx = fw / 2, cy = fh / 2;
     const rmax = Math.hypot(cx, cy);
@@ -85,20 +88,16 @@
       for (let x = 0; x < fw; x++) {
         const dx = x - cx;
         const r = Math.hypot(dx, dy) / rmax;
-        /* the platter: steady rotation, a touch more at the spindle */
-        const th = t * SPIN + STIR * Math.exp(-2.4 * r * r);
+        /* the swirl: everything slowly turns, more toward the middle */
+        const th = t * SWIRL + STIR * Math.exp(-2.4 * r * r);
         const co = Math.cos(th), si = Math.sin(th);
-        const nx = (dx * co - dy * si) * S, ny = (dx * si + dy * co) * S;
-        /* the pour: milk folding through coffee, slow and hazy */
-        const qx = noise(nx + t * .06, ny), qy = noise(nx + 5.2, ny - t * .04);
-        let v = fbm(nx + WARP * qx + t * .025, ny + WARP * qy - t * .017);
-        /* grooves: a mid-radius gaussian ring — never the edges, where their
-           arcs would read as vertical scuff-stripes */
-        const gr = (r - .48) / .16;
-        v += GROOVE * Math.sin(r * rmax * 1.1 - t * .8) * Math.exp(-gr * gr);
-        /* vignette: the brew fades into the dark rim */
-        v *= 1.12 - .85 * r * r;
-        field[o++] = v * v;
+        const nx = (dx * co - dy * si) * S, ny = (dx * si + dy * co) * S + t * RISE;
+        /* the gloop: coffee folding up through the milk, slow and heavy */
+        const qx = noise(nx + t * .05, ny), qy = noise(nx + 5.2, ny - t * .035);
+        let v = fbm(nx + WARP * qx + t * .02, ny + WARP * qy - t * .015);
+        /* soft rim — barely there, the haze stays bright */
+        v *= 1.02 - .3 * r * r;
+        field[o++] = v;
       }
     }
   }
