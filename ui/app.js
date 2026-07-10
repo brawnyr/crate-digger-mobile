@@ -419,6 +419,7 @@ function loadAudio(p, url, timeoutMs) {
 // One crate, so this number is exact: pool size minus everything you've judged
 // (every LIBRARY entry is a verdict). No crate overlap, nothing to estimate.
 function renderCrateCount() {
+  if (!els.crateCount) return;            /* the crate bar left the UI */
   const n = _numCache.get(CRATE.query);
   if (typeof n !== "number") { els.crateCount.textContent = ""; return; }
   const left = Math.max(0, n - libCounts().all);

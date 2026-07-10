@@ -64,7 +64,7 @@ body {
 }
 
 /* every text block sits behind frosted glass */
-header, .digbar, .verdict, .library, .shutdown-hint {
+header, .library, .shutdown-hint {
   background: var(--glass-soft);
   backdrop-filter: blur(16px) saturate(130%);
   -webkit-backdrop-filter: blur(16px) saturate(130%);
@@ -294,39 +294,6 @@ audio#player { display: none; }
   0%, 100% { filter: drop-shadow(0 0 10px rgba(238, 147, 187, 0.30)); }
   50%      { filter: drop-shadow(0 0 24px rgba(154, 111, 214, 0.65)); }
 }
-
-/* ---------------- dig bar (which crate) + verdict bar (keep / toss) ---------------- */
-.digbar {
-  display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
-  justify-content: center;
-  max-width: 560px; margin: 28px auto 0;
-}
-/* no verdict buttons — the shortcuts are whispered like a code comment */
-.verdict { margin: 20px 0 6px; text-align: center; }
-.keyhint {
-  margin: 0; color: var(--muted-dim); font-size: 0.8rem; font-weight: 500;
-  text-shadow: 0 1px 8px rgba(20, 11, 5, 0.5);
-}
-.keyhint kbd {
-  font-family: var(--mono); color: var(--latte); font-weight: 700;
-  border: 1px solid var(--glass-line); border-radius: var(--r-xs);
-  padding: 1px 7px; background: rgba(20, 11, 5, 0.5);
-}
-.crate-line {
-  margin: 0; color: var(--muted); font-size: 0.82rem; font-weight: 600;
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  text-shadow: 0 1px 8px rgba(20, 11, 5, 0.5);
-}
-.crate-tag { color: var(--latte); letter-spacing: 0.5px; }
-.crate-name {
-  color: var(--ink); font-weight: 700;
-  padding: 6px 12px; border-radius: var(--r-sm);
-  border: 1px solid var(--glass-line); background: rgba(20, 11, 5, 0.5);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-}
-/* the exact records-left tally — single crate, so it never lies */
-.crate-count { color: var(--muted-dim); font-weight: 500; font-size: 0.78rem; }
-.crate-count:not(:empty)::before { content: "· "; }
 
 /* ---------------- toast ---------------- */
 .toast {
