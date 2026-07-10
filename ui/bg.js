@@ -29,9 +29,11 @@
      webfont lands, since JetBrains Mono arrives async */
   let cols = 0, rows = 0, cw = 7.8, ch = 13;
   function measure() {
+    /* NOT class="brew" — .brew has inset:0, which would stretch the probe to
+       the window and wildly inflate the measured advance */
     const probe = document.createElement('span');
-    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre';
-    probe.className = 'brew';
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;width:max-content';
+    probe.style.font = getComputedStyle(layers[0]).font;
     probe.textContent = 'M'.repeat(100);
     document.body.appendChild(probe);
     cw = probe.getBoundingClientRect().width / 100 || 7.8;
