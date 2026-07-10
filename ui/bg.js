@@ -1,19 +1,14 @@
-/* ASCII BREW — milk meeting coffee, spinning like a platter. Same brew as the
-   homepage, personalized for Crate Digger: the whole field turns like vinyl and
-   faint concentric grooves circle through the haze. Density picks the layer:
-   sparse = dark roast, mids = caramel, crests = cream (see style.css .brew).
+/* PIXEL BREW — milk meeting coffee, spinning like a platter. The same brew
+   field as the homepage's ASCII version, rendered as chunky posterized pixels
+   instead of characters so it never competes with the app's text. The platter
+   turns, faint grooves circle the mid-radii, the cream blooms where it crests.
    External file for CSP (no inline scripts). */
 (function () {
-  const layers = [document.getElementById('coffee'),
-                  document.getElementById('caramel'),
-                  document.getElementById('cream')];
-  if (layers.some(l => !l)) return;
+  const cvs = document.getElementById('bg');
+  if (!cvs) return;
+  const ctx = cvs.getContext('2d', { alpha: false });
+  if (!ctx) return;
   const SEED = Math.random() * 1e3;      /* every session spins a different record */
-
-  /* density ramp, sparse → dense; codey glyphs ordered by ink */
-  const RAMP = "  ..''\":;~-_=<>!ic(){}[]?*7fjzsL/\\|neoahk4XPBS%&#$@";
-  const N = RAMP.length - 1;
-  const T1 = .16, T2 = .40;              /* density cuts: roast | caramel | cream */
 
   /* value noise + fbm */
   function hash(x, y) { const s = Math.sin(x * 127.1 + y * 311.7 + SEED) * 43758.5453; return s - Math.floor(s); }
@@ -25,41 +20,56 @@
   }
   function fbm(x, y) { return noise(x, y) * .65 + noise(x * 2.13 + 7.7, y * 2.13 + 3.1) * .35; }
 
-  /* grid sizing — measured from the real glyph box; re-measured when the
-     webfont lands, since JetBrains Mono arrives async */
-  let cols = 0, rows = 0, cw = 7.8, ch = 13;
-  function measure() {
-    /* NOT class="brew" — .brew has inset:0, which would stretch the probe to
-       the window and wildly inflate the measured advance */
-    const probe = document.createElement('span');
-    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:pre;width:max-content';
-    probe.style.font = getComputedStyle(layers[0]).font;
-    probe.textContent = 'M'.repeat(100);
-    document.body.appendChild(probe);
-    cw = probe.getBoundingClientRect().width / 100 || 7.8;
-    document.body.removeChild(probe);
-  }
-  function size() {
-    cols = Math.ceil(innerWidth / cw) + 1;
-    rows = Math.ceil(innerHeight / ch) + 1;
+  /* the brew palette as a posterized LUT: density 0..1 → coffee dark → dark
+     roast → caramel → latte → cream. 24 steps = visible banding = pixels. */
+  const STOPS = [
+    [0.00, 0x0f, 0x08, 0x03],   /* black coffee            */
+    [0.18, 0x3a, 0x20, 0x10],   /* dark roast              */
+    [0.42, 0x96, 0x60, 0x2a],   /* caramel — where they mix */
+    [0.72, 0xd9, 0xb0, 0x77],   /* latte                   */
+    [1.00, 0xef, 0xd9, 0xa8],   /* the cream bloom — never white */
+  ];
+  const LEVELS = 24;
+  const LUT = new Uint8Array(LEVELS * 3);
+  for (let i = 0; i < LEVELS; i++) {
+    const d = i / (LEVELS - 1);
+    let k = 0;
+    while (k < STOPS.length - 2 && d > STOPS[k + 1][0]) k++;
+    const [d0, r0, g0, b0] = STOPS[k], [d1, r1, g1, b1] = STOPS[k + 1];
+    const f = Math.min(1, Math.max(0, (d - d0) / (d1 - d0)));
+    LUT[i * 3] = r0 + (r1 - r0) * f;
+    LUT[i * 3 + 1] = g0 + (g1 - g0) * f;
+    LUT[i * 3 + 2] = b0 + (b1 - b0) * f;
   }
 
-  /* one frame of the brew */
-  const S = .055;      /* field scale — bigger = tighter billows           */
+  /* grid: one field sample per pixel block */
+  const PX = 10;                          /* CSS px per block */
+  let cols = 0, rows = 0, img = null;
+  function size() {
+    cols = Math.max(1, Math.ceil(innerWidth / PX));
+    rows = Math.max(1, Math.ceil(innerHeight / PX));
+    if (cvs.width !== cols || cvs.height !== rows) {
+      cvs.width = cols; cvs.height = rows;    /* tiny canvas, CSS scales it up */
+      img = ctx.createImageData(cols, rows);
+      for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
+    }
+  }
+
+  /* one frame of the brew — same math as the ASCII version */
+  const S = .045;      /* field scale — bigger = tighter billows           */
   const WARP = 2.1;    /* how hard the milk folds into the coffee          */
   const SPIN = .05;    /* rad/s — the platter's steady turn                */
   const STIR = .45;    /* extra twist near the spindle                     */
   const GROOVE = .032; /* faint concentric ripples, like vinyl grooves     */
-  const out = [[], [], []];
   function frame(t) {
-    const asp = cw / ch;            /* keep the noise isotropic on a non-square grid */
     const cx = cols / 2, cy = rows / 2;
-    const rmax = Math.hypot(cx * asp, cy);
-    out[0].length = out[1].length = out[2].length = 0;
+    const rmax = Math.hypot(cx, cy);
+    const px = img.data;
+    let o = 0;
     for (let y = 0; y < rows; y++) {
-      let r0 = '', r1 = '', r2 = '';
+      const dy = y - cy;
       for (let x = 0; x < cols; x++) {
-        const dx = (x - cx) * asp, dy = y - cy;
+        const dx = x - cx;
         const r = Math.hypot(dx, dy) / rmax;
         /* the platter: steady rotation everywhere, a touch more at the spindle */
         const th = t * SPIN + STIR * Math.exp(-2.4 * r * r);
@@ -68,27 +78,24 @@
         /* the pour: milk folding through coffee, slow and hazy */
         const qx = noise(nx + t * .06, ny), qy = noise(nx + 5.2, ny - t * .04);
         let v = fbm(nx + WARP * qx + t * .025, ny + WARP * qy - t * .017);
-        /* grooves: concentric ripples confined to a mid-radius band — a gaussian
-           ring, so they never reach the edges where their arcs would read as
-           vertical scuff-stripes instead of grooves */
+        /* grooves: confined to a mid-radius ring so their arcs never reach the
+           edges, where they'd read as vertical scuff-stripes */
         const gr = (r - .48) / .16;
         v += GROOVE * Math.sin(r * rmax * 1.1 - t * .8) * Math.exp(-gr * gr);
         /* vignette: the brew fades into the dark rim */
         v *= 1.12 - .85 * r * r;
         const d = v * v;
-        const g = RAMP[Math.max(0, Math.min(N, (d * (N + 6)) | 0))];
-        if (d < T1) { r0 += g; r1 += ' '; r2 += ' '; }
-        else if (d < T2) { r0 += ' '; r1 += g; r2 += ' '; }
-        else { r0 += ' '; r1 += ' '; r2 += g; }
+        const i = 3 * Math.max(0, Math.min(LEVELS - 1, (d * LEVELS) | 0));
+        px[o] = LUT[i]; px[o + 1] = LUT[i + 1]; px[o + 2] = LUT[i + 2];
+        o += 4;
       }
-      out[0].push(r0); out[1].push(r1); out[2].push(r2);
     }
-    for (let i = 0; i < 3; i++) layers[i].textContent = out[i].join('\n');
+    ctx.putImageData(img, 0, 0);
   }
 
   /* loop */
   const RM = matchMedia('(prefers-reduced-motion:reduce)');
-  const FRAME = 1000 / 24;              /* ASCII wants a chunky cadence */
+  const FRAME = 1000 / 24;
   let raf = null, last = 0, t0 = performance.now();
   function loop(now) {
     raf = requestAnimationFrame(loop);
@@ -98,11 +105,8 @@
   function start() { if (!raf && !RM.matches) raf = requestAnimationFrame(loop); }
   function stop() { if (raf) { cancelAnimationFrame(raf); raf = null; } }
 
-  measure(); size();
+  size();
   if (RM.matches) frame(8); else start();
-  if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(() => { measure(); size(); if (RM.matches) frame(8); });
-  }
   window.addEventListener('resize', () => { size(); if (RM.matches) frame(8); });
   document.addEventListener('visibilitychange', () => document.hidden ? stop() : start());
   RM.addEventListener('change', () => { stop(); RM.matches ? frame(8) : start(); });
