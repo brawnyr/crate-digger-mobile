@@ -47,7 +47,7 @@
   const WARP = 2.1;    /* how hard the milk folds into the coffee          */
   const SPIN = .05;    /* rad/s — the platter's steady turn                */
   const STIR = .45;    /* extra twist near the spindle                     */
-  const GROOVE = .045; /* faint concentric ripples, like vinyl grooves     */
+  const GROOVE = .032; /* faint concentric ripples, like vinyl grooves     */
   const out = [[], [], []];
   function frame(t) {
     const asp = cw / ch;            /* keep the noise isotropic on a non-square grid */
@@ -66,8 +66,11 @@
         /* the pour: milk folding through coffee, slow and hazy */
         const qx = noise(nx + t * .06, ny), qy = noise(nx + 5.2, ny - t * .04);
         let v = fbm(nx + WARP * qx + t * .025, ny + WARP * qy - t * .017);
-        /* grooves: concentric ripples riding the mid-radii, drifting inward */
-        v += GROOVE * Math.sin(r * rmax * 1.6 - t * .9) * r * (1 - r) * 4;
+        /* grooves: concentric ripples confined to a mid-radius band — a gaussian
+           ring, so they never reach the edges where their arcs would read as
+           vertical scuff-stripes instead of grooves */
+        const gr = (r - .48) / .16;
+        v += GROOVE * Math.sin(r * rmax * 1.1 - t * .8) * Math.exp(-gr * gr);
         /* vignette: the brew fades into the dark rim */
         v *= 1.12 - .85 * r * r;
         const d = v * v;
