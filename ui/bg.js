@@ -1,11 +1,10 @@
-/* SOFT FALLS — deep glowing psychedelia that breathes. A gentle waterfall of
-   color down the center melting into slow layered pools at the sides. The
-   palette is a closed loop of close-luminance neighbors (purple → plum →
-   wine → crimson → red-orange → burnt orange → rust → mauve → back) so every
-   dithered seam reads as glow, never contrast. Two breaths run underneath:
-   the field's brightness swells and relaxes (~35s), the pool-waves deepen
-   and flatten (~50s). 3px pixels; noise on a coarse lattice, bilinearly
-   lifted, Bayer-dithered. External file for CSP (no inline scripts). */
+/* LIVING BREW — every pixel is alive. Domain-warped noise churns slow organic
+   blobs across the screen (the brew), and each 3px pixel carries its own
+   random phase and pulse rate, so the whole surface shimmers like a colony:
+   no two pixels breathe together. The palette is a vibrant closed loop —
+   violet → magenta → blood → orange → amber → rust → wine — saturated enough
+   to pop, still dark enough that text glass floats on it. One global breath
+   (~30s) swells the light underneath. External file for CSP (no inline). */
 (function () {
   const cvs = document.getElementById('bg');
   if (!cvs) return;
@@ -13,17 +12,16 @@
   if (!ctx) return;
   const SEED = Math.random() * 1e3;
 
-  /* the loop of neighbors — deep psychedelia: purples, wines, reds, burnt
-     oranges. still close-luminance neighbors so every seam glows, never pops */
+  /* the vibrant loop — hot saturated neighbors, no white, no pastel */
   const PAL = [
-    [0x46, 0x22, 0x66],   /* deep purple    */
-    [0x60, 0x26, 0x66],   /* plum           */
-    [0x7c, 0x28, 0x50],   /* wine           */
-    [0x92, 0x2e, 0x38],   /* crimson        */
-    [0xa4, 0x42, 0x28],   /* red-orange     */
-    [0xb4, 0x5c, 0x22],   /* burnt orange   */
-    [0x8e, 0x46, 0x40],   /* rust bridge    */
-    [0x64, 0x30, 0x60],   /* mauve bridge   */
+    [0x4a, 0x18, 0x82],   /* electric violet */
+    [0x7c, 0x1c, 0xa8],   /* purple          */
+    [0xb2, 0x1e, 0x92],   /* magenta         */
+    [0xd6, 0x24, 0x58],   /* hot crimson     */
+    [0xe8, 0x44, 0x1e],   /* blood orange    */
+    [0xf2, 0x7c, 0x14],   /* amber           */
+    [0xc2, 0x4e, 0x1a],   /* rust            */
+    [0x8a, 0x22, 0x66],   /* wine bridge     */
   ];
   const L = PAL.length;
   const lut = new Uint8Array(L * 3);      /* PAL × the breath, rebuilt per frame */
@@ -37,23 +35,15 @@
     return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
   }
 
-  /* 8x8 Bayer, ±.5 band, widened — with close neighbors the seams go gauzy */
-  const DITHER = .85;
-  const BAYER = [
-     0, 32,  8, 40,  2, 34, 10, 42,
-    48, 16, 56, 24, 50, 18, 58, 26,
-    12, 44,  4, 36, 14, 46,  6, 38,
-    60, 28, 52, 20, 62, 30, 54, 22,
-     3, 35, 11, 43,  1, 33,  9, 41,
-    51, 19, 59, 27, 49, 17, 57, 25,
-    15, 47,  7, 39, 13, 45,  5, 37,
-    63, 31, 55, 23, 61, 29, 53, 21,
-  ].map(v => (v / 64 - .5) * DITHER);
+  /* sine table for the per-pixel pulse — one lookup per pixel per frame */
+  const SINE = new Float32Array(256);
+  for (let i = 0; i < 256; i++) SINE[i] = Math.sin((i / 256) * Math.PI * 2);
 
-  /* fine output pixels; the two noise fields live on a coarse lattice */
+  /* fine output pixels; the brew field lives on a coarse lattice */
   const PX = 3;                           /* CSS px per output pixel      */
   const STEP = 4;                         /* lattice: every STEP px       */
-  let ow = 0, oh = 0, fw = 0, fh = 0, img = null, wF = null, sF = null;
+  let ow = 0, oh = 0, fw = 0, fh = 0, img = null, bF = null;
+  let phase = null, rate = null;          /* each pixel's own heartbeat   */
   function size() {
     ow = Math.max(1, Math.ceil(innerWidth / PX));
     oh = Math.max(1, Math.ceil(innerHeight / PX));
@@ -63,71 +53,65 @@
       cvs.width = ow; cvs.height = oh;    /* small canvas, CSS scales it up */
       img = ctx.createImageData(ow, oh);
       for (let i = 3; i < img.data.length; i += 4) img.data[i] = 255;
-      wF = new Float32Array(fw * fh);     /* pool-wave field   */
-      sF = new Float32Array(fw * fh);     /* fall-streak field */
+      bF = new Float32Array(fw * fh);     /* brew field */
+      const n = ow * oh;
+      phase = new Uint8Array(n);          /* where in its breath it starts */
+      rate = new Uint8Array(n);           /* how fast it breathes (1–4×)   */
+      for (let i = 0, y = 0; y < oh; y++) for (let x = 0; x < ow; x++, i++) {
+        const h = hash(x * 1.37, y * 2.11);
+        phase[i] = (h * 256) | 0;
+        rate[i] = 1 + ((h * 4096) & 3);
+      }
     }
   }
 
-  const BANDS = 7;      /* pools stacked down the screen                  */
-  const SX = .018;      /* pool-wave frequency across the screen          */
-  const SY = 2.2;       /* how differently each pool waves                */
-  const SCROLL = .02;   /* bands/s — the pools drift, glacially           */
-  const FALLSPD = .5;   /* bands/s — the fall pours, unhurried            */
-  const STREAK = 1.5;   /* how much the fall's streaks bend the color     */
-  const FALLW = .15;    /* fall half-width, fraction of the screen        */
+  const SCALE = .011;   /* blob size — smaller = bigger blobs           */
+  const WARP = 3.2;     /* how hard the churn folds the blobs           */
+  const CYCLES = 2.2;   /* palette loops across the field's range       */
+  const DRIFT = .06;    /* palette-steps/s — the whole brew slowly turns */
+  const LIFE = .5;      /* pulse depth, in palette steps — the aliveness */
+  const BEAT = 12;      /* base pulse speed (ticks/s into the 256 table) */
 
-  function computeFields(t) {
+  function computeField(t) {
     let o = 0;
     for (let ly = 0; ly < fh; ly++) {
-      const u = (ly * STEP) / oh;
+      const py = ly * STEP;
       for (let lx = 0; lx < fw; lx++) {
-        const ox = lx * STEP;
-        wF[o] = noise(ox * SX, u * SY + t * .03);          /* lazy pool wave  */
-        sF[o] = noise(ox * .055, u * 2.0 - t * FALLSPD);   /* falling streaks */
-        o++;
+        const px_ = lx * STEP;
+        /* two churn layers moving against each other warp the brew */
+        const w1 = noise(px_ * .020 + t * .031, py * .020 - t * .022);
+        const w2 = noise(px_ * .017 - t * .026, py * .023 + t * .034);
+        bF[o++] = noise(px_ * SCALE + WARP * w1, py * SCALE + WARP * w2);
       }
     }
   }
 
   function frame(t) {
-    /* breath one: the whole field's light swells and relaxes (~35s cycle) */
-    const light = .93 + .07 * Math.sin(t * .18);
+    /* the one global breath: the field's light swells and relaxes (~30s) */
+    const light = .92 + .08 * SINE[((t * .21 / (Math.PI * 2) * 256) & 255)];
     for (let i = 0; i < L; i++) {
       lut[i * 3] = PAL[i][0] * light;
       lut[i * 3 + 1] = PAL[i][1] * light;
       lut[i * 3 + 2] = PAL[i][2] * light;
     }
-    /* breath two: the pool-waves deepen and flatten (~50s cycle) */
-    const wave = 1.1 * (.72 + .28 * Math.sin(t * .125 + 2));
 
-    computeFields(t);
+    computeField(t);
     const px = img.data;
-    const cx = ow / 2;
-    let o = 0;
+    const drift = t * DRIFT;
+    const tick = (t * BEAT) | 0;
+    let o = 0, p = 0;
     for (let y = 0; y < oh; y++) {
-      const u = y / oh;
       const gy = y / STEP, iy = gy | 0, fy = gy - iy;
       const row0 = iy * fw, row1 = row0 + fw;
-      const brow = (y & 7) << 3;
-      const halfw = ow * (FALLW + .04 * u);   /* the fall widens a touch, like spray */
-      const vBase = u * BANDS + t * SCROLL;
-      const vFallBase = u * 4 - t * FALLSPD * 1.5;
-      for (let x = 0; x < ow; x++) {
+      for (let x = 0; x < ow; x++, p++) {
         const gx = x / STEP, ix = gx | 0, fx = gx - ix;
         const a0 = row0 + ix, a1 = row1 + ix;
-        const bx = fx, by = fy;
-        /* bilinear lift of both lattice fields */
-        const w = wF[a0] + (wF[a0 + 1] - wF[a0]) * bx + (wF[a1] - wF[a0]) * by
-                + (wF[a0] - wF[a0 + 1] - wF[a1] + wF[a1 + 1]) * bx * by;
-        const s = sF[a0] + (sF[a0 + 1] - sF[a0]) * bx + (sF[a1] - sF[a0]) * by
-                + (sF[a0] - sF[a0 + 1] - sF[a1] + sF[a1 + 1]) * bx * by;
-        /* pools and fall, melted by distance from the center column */
-        const vBand = vBase + wave * w;
-        const vFall = vFallBase + STREAK * s;
-        const dxx = Math.abs(x - cx) / halfw;
-        const d4 = dxx * dxx * dxx * dxx;
-        const m = 1 / (1 + d4);                 /* soft plateau, soft skirts */
-        const v = vBand + (vFall - vBand) * m + BAYER[brow | (x & 7)];
+        /* bilinear lift of the brew */
+        const b = bF[a0] + (bF[a0 + 1] - bF[a0]) * fx + (bF[a1] - bF[a0]) * fy
+                + (bF[a0] - bF[a0 + 1] - bF[a1] + bF[a1 + 1]) * fx * fy;
+        /* this pixel's own heartbeat */
+        const life = LIFE * SINE[(phase[p] + tick * rate[p]) & 255];
+        const v = b * L * CYCLES + drift + life;
         const i = 3 * (((v % L) + L) % L | 0);
         px[o] = lut[i]; px[o + 1] = lut[i + 1]; px[o + 2] = lut[i + 2];
         o += 4;
