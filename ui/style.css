@@ -47,7 +47,7 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* the living-brew canvas — bg.js paints it, CSS scales its 3px pixels up crisp */
+/* the background canvas — blank for now; whatever comes next grows from here */
 #bg {
   position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0;
   pointer-events: none;
