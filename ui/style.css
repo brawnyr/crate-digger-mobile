@@ -1,10 +1,10 @@
 /* ==========================================================================
-   Crate Digger — hazy psychedelic-coffee, codey edition.
-   Coffee-and-milk swirl behind frosted glass; JetBrains Mono, warm color wheel.
+   Crate Digger — plain black stage, codey edition.
+   Warm color wheel on frosted glass; JetBrains Mono; no background shader.
    ========================================================================== */
 :root {
-  /* SOFT FALLS, deep cut — purples/wines/reds/oranges; cream ink on dark glass */
-  --abyss: #2a1430;
+  /* plain black stage — warm cream ink on dark glass, no shader behind it */
+  --abyss: #000000;
   --cream: #f7ecd2;
   --latte: #e6b06a;
   --rust: #c97a3e;
@@ -41,18 +41,12 @@ body {
   margin: 0;
   font-family: var(--mono);
   color: var(--body);
-  background: var(--abyss); /* no gradients — the brew layers paint the cup */
+  background: var(--abyss); /* plain black, nothing behind the glass */
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* the background canvas — blank for now; whatever comes next grows from here */
-#bg {
-  position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0;
-  pointer-events: none;
-  image-rendering: pixelated; image-rendering: crisp-edges;
-}
 /* every text block sits behind frosted glass */
 header, .library, .shutdown-hint {
   background: var(--glass-soft);
