@@ -1,8 +1,7 @@
 # Crate Digger
 
 Tauri desktop app for digging Internet Archive records and keeping samples as
-WAVs. Pulls warm LP-era soul / blues / funk / soul-jazz from one curated pool,
-plays it on a spinning ASCII turntable over the psychedelic coffee swirl.
+WAVs. Pulls warm LP-era soul / blues / funk / soul-jazz 
 
 - **K** keeps a record, **T** tosses it; the next one cues automatically.
 - A keep downloads the track and converts it to 16-bit WAV in the sample
