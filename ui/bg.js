@@ -1,4 +1,9 @@
-/* "pbrew" — the OG coffee-and-milk swirl, now run bright: no global dim, easy vignette, no overlay veils. External file for CSP (no inline scripts). */
+/* MOLTEN MATH — hot psychedelic lava, pixelated and codery. A domain-warped
+   fbm field creeps like molten rock; its heat is posterized into hard bands
+   with per-pixel hash dither (the codery grain), and level-set contour lines
+   glow gold as they march through the melt — the math showing itself. Ramp
+   runs black crust → blood → red → orange → gold, peaking pale only in the
+   hottest crests. Chunky 6px pixels. External file for CSP (no inline). */
 const FRAG = `
   precision highp float;
   uniform vec2 uRes; uniform float uT;
@@ -15,24 +20,35 @@ const FRAG = `
     for(int i=0;i<5;i++){v+=a*noise(p);p=m*p;a*=.5;}
     return v;
   }
-  /* the record's own wheel — every pixel is EXACTLY one of the six colors in
-     the ascii-record conic gradient, hard-stepped, never shaded or blended */
-  vec3 pal(float x){
-    float s=floor(fract(x)*6.);
-    if(s<1.) return vec3(.969,.925,.824);   /* #f7ecd2 cream       */
-    if(s<2.) return vec3(.902,.690,.416);   /* #e6b06a latte       */
-    if(s<3.) return vec3(.788,.561,.329);   /* #c98f54 caramel     */
-    if(s<4.) return vec3(.933,.576,.733);   /* #ee93bb rose        */
-    if(s<5.) return vec3(.604,.435,.839);   /* #9a6fd6 violet      */
-    return vec3(.435,.306,.659);            /* #6f4ea8 deep violet */
+  /* the heat ramp: crust to pale gold, hot all the way up */
+  vec3 ramp(float x){
+    x=clamp(x,0.,1.)*5.;
+    vec3 c=vec3(.07,.02,.03);                    /* black crust    */
+    c=mix(c,vec3(.42,.05,.04),clamp(x,0.,1.));   /* blood          */
+    c=mix(c,vec3(.80,.16,.06),clamp(x-1.,0.,1.));/* hot red        */
+    c=mix(c,vec3(.96,.42,.09),clamp(x-2.,0.,1.));/* orange         */
+    c=mix(c,vec3(1.,.72,.14), clamp(x-3.,0.,1.));/* gold           */
+    c=mix(c,vec3(1.,.88,.46), clamp(x-4.,0.,1.));/* pale crest     */
+    return c;
   }
   void main(){
     vec2 uv=(gl_FragCoord.xy-.5*uRes)/min(uRes.x,uRes.y);
-    float t=uT*.03;
-    vec2 q=vec2(fbm(uv*1.6+vec2(0.,t)), fbm(uv*1.6+vec2(5.2,t*.8)));
-    float f=fbm(uv*2.2+2.6*q+vec2(t*.5,-t*.3));
-    float idx=f*.9 + t*.18 + length(uv)*.18 + q.x*.30;
-    gl_FragColor=vec4(pal(idx),1.);           /* flat record colors, nothing else */
+    float t=uT*.05;
+    /* the flow: two warp currents shear the field so it creeps like melt */
+    vec2 q=vec2(fbm(uv*1.5+vec2(0.,t*.9)), fbm(uv*1.5+vec2(5.2,-t*.7)));
+    float f=fbm(uv*2.3+2.8*q+vec2(-t*.5,t*1.1));
+    /* heat: crusty lows, molten highs, a slow deep pulse underneath */
+    float heat=smoothstep(.12,.96,f)*(.88+.12*sin(uT*.11));
+    heat+=.22*q.x-.11;                            /* psychedelic drift in the hue */
+    /* codery grain: posterize into hard bands, hash-dithered per pixel */
+    float d=hash(floor(gl_FragCoord.xy))-.5;
+    heat=floor(heat*11.+.5+d*.9)/11.;
+    vec3 col=ramp(heat);
+    /* the math surfaces: level-set contours marching through the melt */
+    float lv=1.-abs(fract(f*7.-uT*.06)*2.-1.);
+    float line=pow(lv,14.)*smoothstep(.25,.6,f);
+    col+=vec3(1.,.72,.2)*line*.55;
+    gl_FragColor=vec4(col,1.);
   }`;
 const VERT = 'attribute vec2 aP;void main(){gl_Position=vec4(aP,0.,1.);}';
 (function () {
