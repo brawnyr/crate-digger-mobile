@@ -15,22 +15,16 @@ const FRAG = `
     for(int i=0;i<5;i++){v+=a*noise(p);p=m*p;a*=.5;}
     return v;
   }
+  /* the record's own wheel — every pixel is EXACTLY one of the six colors in
+     the ascii-record conic gradient, hard-stepped, never shaded or blended */
   vec3 pal(float x){
-    vec3 cream =vec3(.96,.90,.78);
-    vec3 latte =vec3(.87,.69,.45);
-    vec3 caramel=vec3(.73,.42,.22);
-    vec3 rose  =vec3(.93,.56,.72);
-    vec3 violet=vec3(.52,.33,.76);
-    vec3 coffee=vec3(.18,.11,.08);
-    x=fract(x)*6.;
-    vec3 c=cream;
-    c=mix(c,latte,  clamp(x-0.,0.,1.));
-    c=mix(c,caramel,clamp(x-1.,0.,1.));
-    c=mix(c,rose,   clamp(x-2.,0.,1.));
-    c=mix(c,violet, clamp(x-3.,0.,1.));
-    c=mix(c,coffee, clamp(x-4.,0.,1.));
-    c=mix(c,cream,  clamp(x-5.,0.,1.));
-    return c;
+    float s=floor(fract(x)*6.);
+    if(s<1.) return vec3(.969,.925,.824);   /* #f7ecd2 cream       */
+    if(s<2.) return vec3(.902,.690,.416);   /* #e6b06a latte       */
+    if(s<3.) return vec3(.788,.561,.329);   /* #c98f54 caramel     */
+    if(s<4.) return vec3(.933,.576,.733);   /* #ee93bb rose        */
+    if(s<5.) return vec3(.604,.435,.839);   /* #9a6fd6 violet      */
+    return vec3(.435,.306,.659);            /* #6f4ea8 deep violet */
   }
   void main(){
     vec2 uv=(gl_FragCoord.xy-.5*uRes)/min(uRes.x,uRes.y);
@@ -38,14 +32,7 @@ const FRAG = `
     vec2 q=vec2(fbm(uv*1.6+vec2(0.,t)), fbm(uv*1.6+vec2(5.2,t*.8)));
     float f=fbm(uv*2.2+2.6*q+vec2(t*.5,-t*.3));
     float idx=f*.9 + t*.18 + length(uv)*.18 + q.x*.30;
-    vec3 col=pal(idx);
-    col*=mix(.40,1.0,smoothstep(.05,.95,f));
-    float sheen=pow(smoothstep(.62,1.,f),3.);
-    col+=vec3(.96,.90,.78)*sheen*.15;
-    col=floor(col*10.+.5)/10.;                 /* chunky coffee-and-milk banding */
-    float vg=smoothstep(1.5,.28,length(uv));
-    col*=mix(.55,1.,vg);                        /* gentle vignette, kept bright */
-    gl_FragColor=vec4(col,1.);
+    gl_FragColor=vec4(pal(idx),1.);           /* flat record colors, nothing else */
   }`;
 const VERT = 'attribute vec2 aP;void main(){gl_Position=vec4(aP,0.,1.);}';
 (function () {
