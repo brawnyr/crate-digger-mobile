@@ -31,5 +31,5 @@ stable or existing logs orphan.
 
 - Keep code minimal — prefer deleting over abstracting; comments explain why, not what.
 - Curation happens in the single `CRATE` query (the record pool), not in filters.
-- Single branch (`main`), no PRs; a Stop hook auto-commits and pushes.
+- Single branch (`main`), no PRs; commit and push deliberately (the old auto-commit Stop hook was removed 2026-07-12).
 - CSP lives in `tauri.conf.json`, not a meta tag.
