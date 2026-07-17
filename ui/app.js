@@ -66,9 +66,9 @@ function smoothstep(a, b, x) {
   return t * t * (3 - 2 * t);
 }
 // The verdict plays out on the disc itself, both on the same sine breath —
-// keep: a ring of light sweeps out to the rim, then gathers back into the
-// spindle; toss: the disc crumbles to dust and breathes back together.
-// CSS handles the color wash (fx-*).
+// keep: the whole vinyl morphs, a ripple running through the grooves and
+// twisting the arms before it settles; toss: the disc crumbles to dust and
+// breathes back together. CSS handles the color wash (fx-*).
 let discFx = null, discFxT0 = 0, discFxMs = 0;
 function discEffect(kind) {
   const ms = 1500;
@@ -94,15 +94,21 @@ function renderDisc(phase) {
       if (r > D_OUTER + 0.5) { out += " "; continue; }
       if (r < 1.2) { out += " "; continue; }
       const th = Math.atan2(dy, dx);
-      const arm = smoothstep(0.45, 0.96, Math.sin(2 * th + 0.5 * r - phase));
-      const surface = 0.12 * (0.5 + 0.5 * Math.sin(r * 2.3));
-      let n = Math.max(arm, surface) * smoothstep(D_OUTER + 0.4, D_OUTER - 3.2, r);
-      n = n < 0 ? 0 : n > 1 ? 1 : n;
-      if (discFx === "keep") {           // light sweeps out to the rim, then gathers back in
-        const pos = Math.sin(Math.PI * fxK) * (D_OUTER + 2);
-        const ring = 1 - Math.min(1, Math.abs(r - pos) / 2.4);
-        n = Math.min(1, n + ring * ring);
+      // keep: no overlay — the vinyl itself morphs. A radial ripple runs
+      // through the grooves and the arms twist with it, then it all
+      // settles back to a plain spinning record.
+      let wr = r, wth = th, swell = 0;
+      if (discFx === "keep") {
+        const env = Math.sin(Math.PI * fxK);            // 0 → 1 → 0, no hard stop
+        const wave = Math.sin(r * 1.5 - fxK * Math.PI * 4);
+        wr = r + env * 2.2 * wave;
+        wth = th + env * 0.5 * Math.sin(fxK * Math.PI * 2 + r * 0.7);
+        swell = env * 0.22 * (0.5 + 0.5 * wave);        // the crests glow a little
       }
+      const arm = smoothstep(0.45, 0.96, Math.sin(2 * wth + 0.5 * wr - phase));
+      const surface = 0.12 * (0.5 + 0.5 * Math.sin(wr * 2.3));
+      let n = (Math.max(arm, surface) + swell) * smoothstep(D_OUTER + 0.4, D_OUTER - 3.2, r);
+      n = n < 0 ? 0 : n > 1 ? 1 : n;
       let ch = D_RAMP[Math.round(n * (D_RAMP.length - 1))];
       if (discFx === "toss") {           // crumble to dust, then breathe back together
         const d = Math.sin(Math.PI * fxK);        // 0 → 1 → 0, no hard stop

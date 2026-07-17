@@ -1,15 +1,20 @@
-/* The record-wheel swirl behind the glass — the blood-flow shader
-   (myspace create/blood-flow.html) repoured warm and creamy from the
-   ASCII vinyl's wheel: roast deeps, caramel, amber, a rose accent,
-   cream crests. No sheen — matte pour. Separate file for CSP: no
-   inline scripts. */
+/* The sky behind the glass — soft creamy psychedelia in the UI's own
+   colors. The palette is lifted straight from style.css (cream, latte,
+   rust, rose, violet over a plum deep) so the background and the glass
+   are one thing. The paint is twice-folded domain-warped fbm — no
+   center, no subject, colors mixed all over — and five organic friends
+   wander through it on separate paths, meeting and disappearing on
+   their own slow life cycles. Everything blends smooth as milk: no
+   dither, no hard bands, low contrast in the mids so the frosted
+   glass floats on top instead of fighting it.
+   Separate file for CSP: no inline scripts. */
 
 const bgCanvas = document.getElementById('bg');
 const gl = bgCanvas.getContext('webgl2', { antialias: false });
 
 if (gl) {
 
-const RENDER_H = 1080; /* render height cap — the flow is soft, upscaling is free perf */
+const RENDER_H = 720; /* the field is soft — upscaling only adds cream */
 
 const VERT = `#version 300 es
 void main() {
@@ -23,11 +28,7 @@ out vec4 outColor;
 uniform vec2  uRes;
 uniform float uTime;
 
-float hash11(float n){ n = fract(n*0.1031); n *= n + 33.33; n *= n + n; return fract(n); }
 float hash21(vec2 p){ vec3 q = fract(vec3(p.xyx)*0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y)*q.z); }
-vec2  hash22(vec2 p){ vec3 q = fract(vec3(p.xyx)*vec3(0.1031,0.1030,0.0973)); q += dot(q, q.yzx + 33.33); return fract((q.xx + q.yz)*q.zy); }
-
-mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c, -s, s, c); }
 
 float vnoise(vec2 p){
   vec2 i = floor(p), f = fract(p);
@@ -41,56 +42,64 @@ float fbm(vec2 p){
   return s;
 }
 
-/* the warm side of the vinyl's wheel as a depth ramp — roast deeps,
-   caramel and amber midtones, a thin rose accent, cream on the crests */
-vec3 wheel(float v){
+/* the UI's wheel, coffee edition: purple deeps (never blue-black),
+   violet, mocha tan, rose, milky coffee, cream */
+vec3 ramp(float v){
   v = clamp(v, 0.0, 1.0);
-  vec3 c = mix(vec3(0.050, 0.030, 0.018), vec3(0.300, 0.190, 0.100), smoothstep(0.08, 0.48, v));
-  c = mix(c, vec3(0.560, 0.380, 0.210), smoothstep(0.48, 0.68, v));
-  c = mix(c, vec3(0.788, 0.561, 0.329), smoothstep(0.68, 0.82, v));
-  c = mix(c, vec3(0.933, 0.576, 0.733), smoothstep(0.84, 0.90, v));
-  c = mix(c, vec3(0.902, 0.690, 0.416), smoothstep(0.90, 0.95, v));
-  c = mix(c, vec3(0.969, 0.925, 0.824), smoothstep(0.95, 0.99, v));
+  vec3 c = mix(vec3(0.145, 0.063, 0.220), vec3(0.478, 0.161, 0.769), smoothstep(0.02, 0.40, v)); /* purple deep -> psychedelic purple */
+  c = mix(c, vec3(0.671, 0.502, 0.412), smoothstep(0.36, 0.60, v)); /* -> mocha tan     */
+  c = mix(c, vec3(0.949, 0.373, 0.671), smoothstep(0.56, 0.78, v)); /* -> psychedelic pink */
+  c = mix(c, vec3(0.847, 0.702, 0.573), smoothstep(0.76, 0.89, v)); /* -> milky coffee  */
+  c = mix(c, vec3(0.961, 0.918, 0.847), smoothstep(0.87, 0.99, v)); /* -> cream         */
   return c;
 }
 
 void main(){
-  float t = uTime * 0.055;
   vec2 uv = (gl_FragCoord.xy - 0.5*uRes) / uRes.y;
-  uv.y = -uv.y;
+  float t = uTime * 0.04;
 
-  /* slow systole under everything */
-  float ph = fract(uTime * 0.16);
-  float pulse = pow(0.5 + 0.5*cos(6.2832*ph), 3.0);
-
-  /* three drifting vortices wind the space, coil and release */
-  vec2 p = uv;
-  for (int i = 0; i < 3; i++){
+  /* the friends: soft presences wandering the paint on their own
+     paths — they meet, they mingle, they fade out and are gone */
+  float friends = 0.0;
+  for (int i = 0; i < 5; i++){
     float fi = float(i);
-    vec2 c = (hash22(vec2(fi*7.0 + 3.0, fi*13.0 + 1.0)) - 0.5) * 1.5;
-    c += 0.22 * vec2(cos(t*(0.5 + 0.3*fi) + fi*2.1), sin(t*(0.4 + 0.25*fi) + fi*4.7));
-    vec2 d = p - c;
-    float fall = exp(-dot(d, d) * 2.6);
-    float a = (3.0*sin(t*(0.28 + 0.10*hash11(fi + 2.2)) + fi*2.6) + pulse*0.06) * fall
-            * (hash11(fi + 9.1) > 0.5 ? 1.0 : -1.0);
-    p = c + rot(a)*d;
+    float ph = fi*2.399; /* golden-angle spread, no two paths alike */
+    vec2 fp = vec2(sin(t*(1.3 + 0.4*fi) + ph)*0.85,
+                   cos(t*(1.0 + 0.3*fi) + ph*1.7)*0.55);
+    float life = smoothstep(-0.35, 0.5, sin(uTime*(0.10 + 0.03*fi) + ph*3.1));
+    vec2 d = uv - fp;
+    friends += exp(-dot(d, d)*6.0) * life;
   }
 
-  /* nested flow warp on top of the swirl: the churn */
-  vec2 q = vec2(fbm(p*1.6 + t*0.9), fbm(p*1.6 - t*0.7 + 5.2));
-  vec2 r = vec2(fbm(p*1.6 + 2.6*q + 1.7 + t*0.35), fbm(p*1.6 + 2.6*q + 8.3 - t*0.45));
-  float v = fbm(p*1.8 + 3.0*r);
-  v = v*0.8 + 0.35*fbm(p*5.5 + 4.0*r - t*1.2);
-  v = clamp((v - 0.18) * 1.55, 0.0, 1.0);
+  /* the paint: fold the field through itself twice — marbling */
+  vec2 p = uv * 1.9;
+  vec2 q = vec2(fbm(p + vec2(t*0.9, 0.0)),
+                fbm(p + vec2(5.2, 1.3) - t*0.7));
+  vec2 w = vec2(fbm(p + 3.0*q + vec2(1.7, 9.2) + t*0.5),
+                fbm(p + 3.0*q + vec2(8.3, 2.8) - t*0.4));
+  float paint = fbm(p + 3.2*w);
 
-  vec3 col = wheel(v * (0.94 + 0.10*pulse));
+  /* life: the field breathes through the palette on a slow clock,
+     stirred by the warp, lifted where a friend is passing */
+  float flow = paint*2.2 + w.x*1.2 - w.y*0.7 + friends*0.9 + t*0.35
+             + 0.18*sin(uv.x*3.0 + uv.y*2.0 + paint*4.0 + t*2.0); /* the wavy in the pink */
 
-  float vig = smoothstep(1.35, 0.3, length(uv));
-  col *= 0.28 + 0.72*vig;
-  col = col / (1.0 + col*0.45);
-  col = pow(col, vec3(0.90, 0.92, 0.97));
+  /* ping-pong through the ramp — every color everywhere, no seam —
+     softened toward the middle so the mids stay quiet under glass */
+  float v = abs(fract(flow) * 2.0 - 1.0);
+  v = v*v*(3.0 - 2.0*v); /* ease the turnarounds, kill any crease */
+  v = mix(v, 0.42, 0.22); /* pull gently toward the calm middle */
 
-  col += (hash21(gl_FragCoord.xy + fract(uTime)*371.0) - 0.5) * 0.012;
+  vec3 col = ramp(v);
+
+  /* soft breath of light where friends gather, creamy not hot */
+  col += vec3(0.10, 0.07, 0.05) * friends;
+
+  /* gentle vignette and a milk rinse — the UI floats on this */
+  float vig = smoothstep(1.55, 0.4, length(uv));
+  col *= 0.66 + 0.34*vig;
+  col = col / (1.0 + col*0.22);
+  col = pow(col, vec3(0.96, 0.97, 1.0));
 
   outColor = vec4(col, 1.0);
 }`;

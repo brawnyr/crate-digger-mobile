@@ -61,7 +61,7 @@ header, .library, .shutdown-hint {
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
-/* the record-wheel swirl (bg.js) fills the stage behind the glass */
+/* the creamy paint (bg.js) fills the stage behind the glass */
 #bg {
   position: fixed; inset: 0; z-index: 0;
   width: 100vw; height: 100vh;
