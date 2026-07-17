@@ -3,8 +3,8 @@
    Warm color wheel on frosted glass; JetBrains Mono; bg.js churns behind.
    ========================================================================== */
 :root {
-  /* dark-plum fallback under the record-wheel swirl (bg.js) */
-  --abyss: #0b0612;
+  /* warm dark-roast fallback under the record-wheel swirl (bg.js) */
+  --abyss: #0d0805;
   --cream: #f7ecd2;
   --latte: #e6b06a;
   --rust: #c97a3e;

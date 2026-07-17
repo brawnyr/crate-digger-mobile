@@ -1,7 +1,8 @@
 /* The record-wheel swirl behind the glass — the blood-flow shader
-   (myspace create/blood-flow.html) repoured in the ASCII vinyl's own
-   conic-wheel colors: cream, amber, caramel, rose, violet. Separate
-   file for CSP: no inline scripts. */
+   (myspace create/blood-flow.html) repoured warm and creamy from the
+   ASCII vinyl's wheel: roast deeps, caramel, amber, a rose accent,
+   cream crests. No sheen — matte pour. Separate file for CSP: no
+   inline scripts. */
 
 const bgCanvas = document.getElementById('bg');
 const gl = bgCanvas.getContext('webgl2', { antialias: false });
@@ -40,17 +41,16 @@ float fbm(vec2 p){
   return s;
 }
 
-/* the vinyl's own wheel as a depth ramp — deeps carry the room,
-   rose/amber/cream ride only the crests:
-   dark plum -> deep violet -> violet -> rose -> amber -> cream */
+/* the warm side of the vinyl's wheel as a depth ramp — roast deeps,
+   caramel and amber midtones, a thin rose accent, cream on the crests */
 vec3 wheel(float v){
   v = clamp(v, 0.0, 1.0);
-  vec3 c = mix(vec3(0.030, 0.016, 0.050), vec3(0.270, 0.185, 0.420), smoothstep(0.08, 0.50, v));
-  c = mix(c, vec3(0.435, 0.306, 0.659), smoothstep(0.50, 0.70, v));
-  c = mix(c, vec3(0.604, 0.435, 0.839), smoothstep(0.70, 0.84, v));
-  c = mix(c, vec3(0.933, 0.576, 0.733), smoothstep(0.84, 0.93, v));
-  c = mix(c, vec3(0.902, 0.690, 0.416), smoothstep(0.93, 0.975, v));
-  c = mix(c, vec3(0.969, 0.925, 0.824), smoothstep(0.975, 0.995, v));
+  vec3 c = mix(vec3(0.050, 0.030, 0.018), vec3(0.300, 0.190, 0.100), smoothstep(0.08, 0.48, v));
+  c = mix(c, vec3(0.560, 0.380, 0.210), smoothstep(0.48, 0.68, v));
+  c = mix(c, vec3(0.788, 0.561, 0.329), smoothstep(0.68, 0.82, v));
+  c = mix(c, vec3(0.933, 0.576, 0.733), smoothstep(0.84, 0.90, v));
+  c = mix(c, vec3(0.902, 0.690, 0.416), smoothstep(0.90, 0.95, v));
+  c = mix(c, vec3(0.969, 0.925, 0.824), smoothstep(0.95, 0.99, v));
   return c;
 }
 
@@ -85,17 +85,10 @@ void main(){
 
   vec3 col = wheel(v * (0.94 + 0.10*pulse));
 
-  /* wet sheen: light the field by its own gradient */
-  vec2 g = vec2(dFdx(v), dFdy(v)) * uRes.y * 0.12;
-  vec3 n = normalize(vec3(-g, 1.0));
-  vec3 L = normalize(vec3(-0.45, 0.55, 0.72));
-  float spec = pow(max(dot(reflect(-L, n), vec3(0.0, 0.0, 1.0)), 0.0), 28.0);
-  col += vec3(1.0, 0.94, 0.85) * spec * 0.30 * smoothstep(0.25, 0.6, v);
-
   float vig = smoothstep(1.35, 0.3, length(uv));
   col *= 0.28 + 0.72*vig;
   col = col / (1.0 + col*0.45);
-  col = pow(col, vec3(0.92, 0.92, 0.94));
+  col = pow(col, vec3(0.90, 0.92, 0.97));
 
   col += (hash21(gl_FragCoord.xy + fract(uTime)*371.0) - 0.5) * 0.012;
 
