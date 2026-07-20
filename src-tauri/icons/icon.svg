@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!-- tile -->
+  <rect width="256" height="256" rx="56" fill="#241812"/>
+  <!-- sleeved records still in the crate, flanking the dig -->
+  <rect x="30" y="114" width="22" height="46" rx="8" fill="#f7ecd2"/>
+  <rect x="204" y="114" width="22" height="46" rx="8" fill="#f7ecd2"/>
+  <!-- the hero record, pulled halfway up -->
+  <circle cx="128" cy="116" r="72" fill="#f7ecd2"/>
+  <circle cx="128" cy="116" r="56" fill="#241812"/>
+  <circle cx="128" cy="116" r="26" fill="#c26b4a"/>
+  <circle cx="128" cy="116" r="9" fill="#f7ecd2"/>
+  <!-- crate: lip, front panel, handle cutout -->
+  <rect x="24" y="148" width="208" height="22" rx="10" fill="#b37135"/>
+  <rect x="36" y="164" width="184" height="62" rx="10" fill="#b37135"/>
+  <rect x="106" y="184" width="44" height="18" rx="9" fill="#241812"/>
+</svg>
