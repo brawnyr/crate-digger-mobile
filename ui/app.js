@@ -11,28 +11,29 @@
 const invoke = window.__TAURI__.core.invoke;
 const LS = { log: "cd_log_cache", pending: "cd_pending" };
 
-// One crate, no picker. The whole thing is tuned to one sound: creamy,
-// psychedelic, beautiful late-'60s/early-'70s soul — Nina in '69, the warm
-// smoke-to records. Half 1 is the LP well (soul/blues/funk/soul-jazz +
-// psychedelic soul); Half 2 is that era's voices by name. Not rap, not
-// mixtapes — that's a different, rougher corner of the Archive. One crate
-// means no overlap, which is the point: the "records left" count is exact
-// (pool − everything you've judged), not an estimate.
+// One crate, no picker. The whole thing is tuned to one sound — and the sound
+// changes when the ear does. This crate is the strange shelf: library music,
+// exotica, space-age pop, Moog records, sound-effects LPs, the cinematic
+// weirdness the Archive keeps in the back. Half 1 is the LP well by subject;
+// Half 2 is the era's names — Denny, Baxter, Esquivel, Perrey, Raymond Scott.
+// The soul crate ("the_good_stuff") came before this one; its verdicts stay in
+// the log under their own source key. One crate at a time means no overlap,
+// which is the point: the "records left" count is exact (pool − everything
+// you've judged from THIS crate), not an estimate.
 const CRATE = {
-  key: "the_good_stuff", pick: "track",
+  key: "the_strange_stuff", pick: "track",
   query:
-    '(collection:unlockedrecordings AND (subject:Soul OR subject:Blues OR subject:Funk ' +
-    'OR subject:"Soul-Jazz" OR subject:"Jazz-Funk" OR subject:"Funk / Soul" ' +
-    'OR subject:"Rhythm and blues" OR subject:"Psychedelic Soul")) ' +
+    '(collection:unlockedrecordings AND (subject:"Easy Listening" OR subject:Exotica ' +
+    'OR subject:Lounge OR subject:"Space-Age" OR subject:"Space Age Pop" ' +
+    'OR subject:Novelty OR subject:Moog OR subject:Electronic OR subject:Soundtrack ' +
+    'OR subject:"Production Music" OR subject:Library)) ' +
     'OR (collection:(opensource_audio OR unlockedrecordings OR album_recordings) ' +
-    'AND (creator:"Nina Simone" OR creator:"Aretha Franklin" OR creator:"Etta James" ' +
-    'OR creator:"Roberta Flack" OR creator:"Nancy Wilson" OR creator:"Carmen McRae" ' +
-    'OR creator:"Dinah Washington" OR creator:"Gloria Lynne" OR creator:"Esther Phillips" ' +
-    'OR creator:"Donny Hathaway" OR creator:"Bill Withers" OR creator:"Curtis Mayfield" ' +
-    'OR creator:"Gil Scott-Heron" OR creator:"Marlena Shaw" OR creator:"Roy Ayers" ' +
-    'OR creator:"Terry Callier" OR creator:"Shuggie Otis" OR creator:"Minnie Riperton" ' +
-    'OR creator:"Isaac Hayes" OR creator:"Al Green" OR creator:"Bobby Womack" ' +
-    'OR creator:"Labi Siffre" OR creator:"Gene McDaniels" OR creator:"Leon Thomas") ' +
+    'AND (creator:"Martin Denny" OR creator:"Les Baxter" OR creator:"Arthur Lyman" ' +
+    'OR creator:"Esquivel" OR creator:"Yma Sumac" OR creator:"Korla Pandit" ' +
+    'OR creator:"Jean-Jacques Perrey" OR creator:"Raymond Scott" OR creator:"Enoch Light" ' +
+    'OR creator:"Ferrante & Teicher" OR creator:"The Three Suns" OR creator:"101 Strings" ' +
+    'OR creator:"Dick Hyman" OR creator:"Russ Garcia" OR creator:"Robert Drasnin" ' +
+    'OR creator:"Frank Hunter" OR creator:"Milt Raskin") ' +
     'AND NOT creator:Various AND NOT title:Unofficial)',
 };
 
@@ -422,13 +423,16 @@ function loadAudio(p, url, timeoutMs) {
 }
 
 // ---- crate count --------------------------------------------------------
-// One crate, so this number is exact: pool size minus everything you've judged
-// (every LIBRARY entry is a verdict). No crate overlap, nothing to estimate.
+// One crate at a time, so this number is exact: pool size minus everything
+// you've judged FROM THIS crate — verdicts from retired crates carry a
+// different source key and aren't in this pool, so they don't count.
 function renderCrateCount() {
   if (!els.crateCount) return;            /* the crate bar left the UI */
   const n = _numCache.get(CRATE.query);
   if (typeof n !== "number") { els.crateCount.textContent = ""; return; }
-  const left = Math.max(0, n - libCounts().all);
+  let judged = 0;
+  for (const k in LIBRARY) if (LIBRARY[k].source === CRATE.key) judged++;
+  const left = Math.max(0, n - judged);
   els.crateCount.textContent = left.toLocaleString() + " to dig";
 }
 async function loadCrate() {
