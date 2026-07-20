@@ -9,33 +9,55 @@
 
 // ---- config -------------------------------------------------------------
 const invoke = window.__TAURI__.core.invoke;
-const LS = { log: "cd_log_cache", pending: "cd_pending" };
+const LS = { log: "cd_log_cache", pending: "cd_pending", crate: "cd_crate" };
 
-// One crate, no picker. The whole thing is tuned to one sound — and the sound
-// changes when the ear does. This crate is the strange shelf: library music,
-// exotica, space-age pop, Moog records, sound-effects LPs, the cinematic
-// weirdness the Archive keeps in the back. Half 1 is the LP well by subject;
-// Half 2 is the era's names — Denny, Baxter, Esquivel, Perrey, Raymond Scott.
-// The soul crate ("the_good_stuff") came before this one; its verdicts stay in
-// the log under their own source key. One crate at a time means no overlap,
-// which is the point: the "records left" count is exact (pool − everything
-// you've judged from THIS crate), not an estimate.
-const CRATE = {
-  key: "the_strange_stuff", pick: "track",
-  query:
-    '(collection:unlockedrecordings AND (subject:"Easy Listening" OR subject:Exotica ' +
-    'OR subject:Lounge OR subject:"Space-Age" OR subject:"Space Age Pop" ' +
-    'OR subject:Novelty OR subject:Moog OR subject:Electronic OR subject:Soundtrack ' +
-    'OR subject:"Production Music" OR subject:Library)) ' +
-    'OR (collection:(opensource_audio OR unlockedrecordings OR album_recordings) ' +
-    'AND (creator:"Martin Denny" OR creator:"Les Baxter" OR creator:"Arthur Lyman" ' +
-    'OR creator:"Esquivel" OR creator:"Yma Sumac" OR creator:"Korla Pandit" ' +
-    'OR creator:"Jean-Jacques Perrey" OR creator:"Raymond Scott" OR creator:"Enoch Light" ' +
-    'OR creator:"Ferrante & Teicher" OR creator:"The Three Suns" OR creator:"101 Strings" ' +
-    'OR creator:"Dick Hyman" OR creator:"Russ Garcia" OR creator:"Robert Drasnin" ' +
-    'OR creator:"Frank Hunter" OR creator:"Milt Raskin") ' +
-    'AND NOT creator:Various AND NOT title:Unofficial)',
-};
+// Two crates, one on the table at a time. Each is tuned to one sound and
+// curated in its single query — no filters. "The good stuff" is creamy,
+// psychedelic late-'60s/early-'70s soul — Nina in '69, the warm smoke-to
+// records: the LP well by subject plus that era's voices by name. "The
+// strange stuff" is the Archive's back shelf — library music, exotica,
+// space-age pop, Moog and sound-effects LPs by subject, plus the era's names:
+// Denny, Baxter, Esquivel, Perrey, Raymond Scott. The crates don't overlap,
+// which is the point: each "to dig" count is exact (pool − everything you've
+// judged FROM that crate), not an estimate. Every verdict is stamped with the
+// crate it came from, so flipping bins never muddies the log.
+const CRATES = [
+  {
+    key: "the_good_stuff", label: "the good stuff", pick: "track",
+    query:
+      '(collection:unlockedrecordings AND (subject:Soul OR subject:Blues OR subject:Funk ' +
+      'OR subject:"Soul-Jazz" OR subject:"Jazz-Funk" OR subject:"Funk / Soul" ' +
+      'OR subject:"Rhythm and blues" OR subject:"Psychedelic Soul")) ' +
+      'OR (collection:(opensource_audio OR unlockedrecordings OR album_recordings) ' +
+      'AND (creator:"Nina Simone" OR creator:"Aretha Franklin" OR creator:"Etta James" ' +
+      'OR creator:"Roberta Flack" OR creator:"Nancy Wilson" OR creator:"Carmen McRae" ' +
+      'OR creator:"Dinah Washington" OR creator:"Gloria Lynne" OR creator:"Esther Phillips" ' +
+      'OR creator:"Donny Hathaway" OR creator:"Bill Withers" OR creator:"Curtis Mayfield" ' +
+      'OR creator:"Gil Scott-Heron" OR creator:"Marlena Shaw" OR creator:"Roy Ayers" ' +
+      'OR creator:"Terry Callier" OR creator:"Shuggie Otis" OR creator:"Minnie Riperton" ' +
+      'OR creator:"Isaac Hayes" OR creator:"Al Green" OR creator:"Bobby Womack" ' +
+      'OR creator:"Labi Siffre" OR creator:"Gene McDaniels" OR creator:"Leon Thomas") ' +
+      'AND NOT creator:Various AND NOT title:Unofficial)',
+  },
+  {
+    key: "the_strange_stuff", label: "the strange stuff", pick: "track",
+    query:
+      '(collection:unlockedrecordings AND (subject:"Easy Listening" OR subject:Exotica ' +
+      'OR subject:Lounge OR subject:"Space-Age" OR subject:"Space Age Pop" ' +
+      'OR subject:Novelty OR subject:Moog OR subject:Electronic OR subject:Soundtrack ' +
+      'OR subject:"Production Music" OR subject:Library)) ' +
+      'OR (collection:(opensource_audio OR unlockedrecordings OR album_recordings) ' +
+      'AND (creator:"Martin Denny" OR creator:"Les Baxter" OR creator:"Arthur Lyman" ' +
+      'OR creator:"Esquivel" OR creator:"Yma Sumac" OR creator:"Korla Pandit" ' +
+      'OR creator:"Jean-Jacques Perrey" OR creator:"Raymond Scott" OR creator:"Enoch Light" ' +
+      'OR creator:"Ferrante & Teicher" OR creator:"The Three Suns" OR creator:"101 Strings" ' +
+      'OR creator:"Dick Hyman" OR creator:"Russ Garcia" OR creator:"Robert Drasnin" ' +
+      'OR creator:"Frank Hunter" OR creator:"Milt Raskin") ' +
+      'AND NOT creator:Various AND NOT title:Unofficial)',
+  },
+];
+// no saved pick yet → the newer bin; every flip is remembered from then on
+let CRATE = CRATES.find((c) => c.key === localStorage.getItem(LS.crate)) || CRATES[1];
 
 // IA search won't page past 10k deep; rotating the sort exposes different windows.
 const SORTS = ["", "titleSorter asc", "titleSorter desc", "date asc", "date desc",
@@ -423,11 +445,11 @@ function loadAudio(p, url, timeoutMs) {
 }
 
 // ---- crate count --------------------------------------------------------
-// One crate at a time, so this number is exact: pool size minus everything
-// you've judged FROM THIS crate — verdicts from retired crates carry a
-// different source key and aren't in this pool, so they don't count.
+// Exact, not an estimate: pool size minus everything you've judged FROM the
+// crate on the table — the other bin's verdicts carry a different source key
+// and aren't in this pool, so they don't count against it.
 function renderCrateCount() {
-  if (!els.crateCount) return;            /* the crate bar left the UI */
+  if (!els.crateCount) return;
   const n = _numCache.get(CRATE.query);
   if (typeof n !== "number") { els.crateCount.textContent = ""; return; }
   let judged = 0;
@@ -440,6 +462,34 @@ async function loadCrate() {
   try { await numFound(CRATE.query); } catch (_) {}
   renderCrateCount();
 }
+
+// ---- crate switch -------------------------------------------------------
+// The deck record survives a flip — its verdict carries the source key it was
+// picked under. Only the cued next-up belongs to the old bin: drop it and let
+// the next prefetch re-cue from the new pool.
+function renderCrateBar() {
+  document.querySelectorAll(".crate-tab").forEach((t) => {
+    const on = t.dataset.crate === CRATE.key;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-checked", on ? "true" : "false");
+  });
+}
+function setCrate(crate) {
+  if (crate === CRATE) return;
+  CRATE = crate;
+  try { localStorage.setItem(LS.crate, crate.key); } catch (_) {}
+  nextUp = null;
+  crateDone = false; retryDelay = 6000;  // an exhausted bin doesn't condemn the other
+  renderCrateBar();
+  loadCrate();
+  if (!busy) spin(true);                 // mid-dig flip: the landing record keeps its own stamp
+}
+document.querySelectorAll(".crate-tab").forEach((t) => {
+  t.addEventListener("click", () => {
+    const c = CRATES.find((x) => x.key === t.dataset.crate);
+    if (c) setCrate(c);
+  });
+});
 
 // ---- present / dig ------------------------------------------------------
 // cuedEl is a live Audio element — it must never reach localStorage (it
@@ -493,16 +543,17 @@ let prefetching = false;
 async function prefetchNext() {
   if (prefetching || nextUp) return;
   prefetching = true;
+  const crate = CRATE;                    // a crate flip mid-dig must not mislabel the pick
   try {
     const exclude = libExcludedKeys();
     if (currentRecord && currentRecord.cache_name) exclude.add(currentRecord.cache_name);
-    const info = await pickRandom(CRATE.query, CRATE.pick, 4, exclude);
+    const info = await pickRandom(crate.query, crate.pick, 4, exclude);
     if (!info) return;
-    info.source = CRATE.key;
+    info.source = crate.key;
     const el = standby;
     const ok = await loadAudio(el, info.play_url);
-    // a swap mid-buffer (deck flip) invalidates this prefetch
-    if (ok && el === standby) nextUp = { rec: info, el };
+    // a swap mid-buffer (deck flip) or a crate flip invalidates this prefetch
+    if (ok && el === standby && crate === CRATE) nextUp = { rec: info, el };
   } catch (_) {
   } finally { prefetching = false; }
 }
@@ -534,6 +585,7 @@ async function spin(quiet) {
   setLoading(true, quiet ? "" : "🪩 digging through the crate…");
   els.card.classList.add("stale");        // the old record fades back while we dig
   els.player.pause();
+  const crate = CRATE;                    // a crate flip mid-dig must not mislabel the pick
   try {
     // a record pre-buffered while the last one played? swap straight to it — no dig wait
     const cued = nextUp;
@@ -546,15 +598,15 @@ async function spin(quiet) {
       return;
     }
     const exclude = libExcludedKeys();
-    let info = await pickRandom(CRATE.query, CRATE.pick, 10, exclude);
+    let info = await pickRandom(crate.query, crate.pick, 10, exclude);
     if (!info) {
       if (exclude.size) {
-        const probe = await pickRandom(CRATE.query, CRATE.pick, 6, null);
+        const probe = await pickRandom(crate.query, crate.pick, 6, null);
         if (probe) { showExhausted("You've dug through every fresh record in the crate."); return; }
       }
       throw new Error("Couldn't dig up a record.");
     }
-    info.source = CRATE.key;
+    info.source = crate.key;
     // only clear a lingering busy toast — keep()'s result toast must survive the auto-spin
     if (els.toast.classList.contains("busy")) clearToast();
     savePending(info);
@@ -622,13 +674,14 @@ function toss() {
   renderCrateCount();
   spin(true);
 }
-// no verdict buttons — K keeps, T tosses (hinted below the disc)
+// no verdict buttons — K keeps, T tosses, C flips the crate
 window.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (/^(input|select|textarea)$/i.test(e.target.tagName)) return;
   const k = e.key.toLowerCase();
   if (k === "k") keep();
   else if (k === "t") toss();
+  else if (k === "c") setCrate(CRATES[(CRATES.indexOf(CRATE) + 1) % CRATES.length]);
 });
 
 // ---- crate log render ---------------------------------------------------
@@ -754,6 +807,7 @@ async function boot() {
   loadLocal();
   renderLibrary();
   restoreSampleFolder();      // reconnect the sample folder if one was picked
+  renderCrateBar();
   loadCrate();
   await animateLogo();
   let pending = null;

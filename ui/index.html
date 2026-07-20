@@ -71,7 +71,12 @@
       </div>
     </section>
 
-    <!-- no crate bar, no verdict buttons — one crate, K keeps, T tosses -->
+    <!-- the crate bar returns: two bins, click or C to flip — verdicts stay on the keys (K keeps, T tosses) -->
+    <div id="crateBar" class="crate-bar" role="radiogroup" aria-label="Crate">
+      <button class="crate-tab" data-crate="the_good_stuff" role="radio" aria-checked="false" type="button">the good stuff</button>
+      <button class="crate-tab" data-crate="the_strange_stuff" role="radio" aria-checked="false" type="button">the strange stuff</button>
+      <span id="crateCount" class="crate-count"></span>
+    </div>
     <div id="toast" class="toast hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <section class="library">

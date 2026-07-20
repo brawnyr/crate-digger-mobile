@@ -323,6 +323,23 @@ audio#player { display: none; }
 }
 .lib-tab.active .tab-n { background: rgba(255, 255, 255, 0.25); }
 
+/* ---------------- crate bar (two bins, one table) ---------------- */
+.crate-bar { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; }
+.crate-tab {
+  font-family: var(--mono); font-size: 0.76rem; font-weight: 600; cursor: pointer;
+  padding: 5px 12px; border-radius: var(--pill);
+  border: 1px solid var(--glass-line); background: rgba(20, 11, 5, 0.3);
+  color: var(--muted);
+  transition: color 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+.crate-tab:hover { color: var(--cream); border-color: rgba(247, 236, 210, 0.3); }
+.crate-tab.active { color: #1c1004; border-color: transparent;
+  background: linear-gradient(135deg, var(--latte), var(--violet)); }
+.crate-count {
+  margin-left: auto; font-size: 0.76rem; color: var(--muted-dim);
+  text-shadow: 0 1px 8px rgba(20, 11, 5, 0.5);
+}
+
 .lib-list { list-style: none; padding: 0; margin: 10px 0; }
 .lib-list li {
   display: flex; align-items: center; gap: 11px;
