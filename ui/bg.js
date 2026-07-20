@@ -1,6 +1,7 @@
-/* The sky behind the glass — the porch at dusk, and nobody's in a
-   hurry: the wheel plays the blues (night indigo — never black —
-   worn denim, tobacco brown, whiskey amber, lamplight cream) and
+/* The sky behind the glass — the last ten minutes of a warm sunset,
+   and nobody's in a hurry: the wheel plays pink and blue (twilight
+   indigo — never black — periwinkle, lavender violet, hot pink,
+   melted coral, peach glow) and
    every clock in the paint runs at rocking-chair speed. The paint is
    twice-folded domain-warped fbm — no center, no subject, colors
    mixed all over — and five organic friends wander through it on
@@ -53,15 +54,15 @@ float bayer(vec2 fc){
   return (float(b[p.y*4 + p.x]) + 0.5) / 16.0;
 }
 
-/* the wheel plays the blues: night indigo (never black), worn
-   denim, tobacco brown, whiskey amber, lamplight cream */
+/* the wheel plays pink and blue: twilight indigo (never black),
+   periwinkle, lavender violet, hot pink, melted coral, peach glow */
 vec3 ramp(float v){
   v = clamp(v, 0.0, 1.0);
-  vec3 c = mix(vec3(0.051, 0.067, 0.129), vec3(0.208, 0.298, 0.451), smoothstep(0.02, 0.40, v)); /* night indigo -> worn denim */
-  c = mix(c, vec3(0.373, 0.294, 0.235), smoothstep(0.36, 0.60, v)); /* -> tobacco brown   */
-  c = mix(c, vec3(0.702, 0.443, 0.208), smoothstep(0.56, 0.78, v)); /* -> whiskey amber   */
-  c = mix(c, vec3(0.851, 0.624, 0.376), smoothstep(0.76, 0.89, v)); /* -> late gold       */
-  c = mix(c, vec3(0.957, 0.878, 0.741), smoothstep(0.87, 0.99, v)); /* -> lamplight cream */
+  vec3 c = mix(vec3(0.078, 0.075, 0.243), vec3(0.302, 0.373, 0.761), smoothstep(0.02, 0.40, v)); /* twilight indigo -> periwinkle */
+  c = mix(c, vec3(0.576, 0.400, 0.812), smoothstep(0.36, 0.60, v)); /* -> lavender violet */
+  c = mix(c, vec3(0.910, 0.447, 0.655), smoothstep(0.56, 0.78, v)); /* -> hot pink        */
+  c = mix(c, vec3(0.965, 0.573, 0.475), smoothstep(0.76, 0.89, v)); /* -> melted coral    */
+  c = mix(c, vec3(1.000, 0.827, 0.663), smoothstep(0.87, 0.99, v)); /* -> peach glow      */
   return c;
 }
 
