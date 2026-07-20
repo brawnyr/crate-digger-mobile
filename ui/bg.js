@@ -1,7 +1,7 @@
 /* The sky behind the glass — soft creamy psychedelia in the UI's own
-   colors. The palette is lifted straight from style.css (cream, latte,
-   rust, rose, violet over a plum deep) so the background and the glass
-   are one thing. The paint is twice-folded domain-warped fbm — no
+   colors, run hot: the wheel leans red and pink (wine deeps, magenta,
+   terracotta, hot pink, peach, warm cream) so the whole field glows
+   like the last hour of a sunset while the glass floats on top. The paint is twice-folded domain-warped fbm — no
    center, no subject, colors mixed all over — and five organic friends
    wander through it on separate paths, meeting and disappearing on
    their own slow life cycles. Everything blends smooth as milk: no
@@ -42,15 +42,15 @@ float fbm(vec2 p){
   return s;
 }
 
-/* the UI's wheel, coffee edition: purple deeps (never blue-black),
-   violet, mocha tan, rose, milky coffee, cream */
+/* the UI's wheel run hot: wine deeps (never blue-black), magenta,
+   terracotta, hot pink, peach, warm cream */
 vec3 ramp(float v){
   v = clamp(v, 0.0, 1.0);
-  vec3 c = mix(vec3(0.145, 0.063, 0.220), vec3(0.478, 0.161, 0.769), smoothstep(0.02, 0.40, v)); /* purple deep -> psychedelic purple */
-  c = mix(c, vec3(0.671, 0.502, 0.412), smoothstep(0.36, 0.60, v)); /* -> mocha tan     */
-  c = mix(c, vec3(0.949, 0.373, 0.671), smoothstep(0.56, 0.78, v)); /* -> psychedelic pink */
-  c = mix(c, vec3(0.847, 0.702, 0.573), smoothstep(0.76, 0.89, v)); /* -> milky coffee  */
-  c = mix(c, vec3(0.961, 0.918, 0.847), smoothstep(0.87, 0.99, v)); /* -> cream         */
+  vec3 c = mix(vec3(0.220, 0.055, 0.145), vec3(0.690, 0.129, 0.541), smoothstep(0.02, 0.40, v)); /* wine deep -> psychedelic magenta */
+  c = mix(c, vec3(0.769, 0.400, 0.290), smoothstep(0.36, 0.60, v)); /* -> terracotta    */
+  c = mix(c, vec3(1.000, 0.318, 0.549), smoothstep(0.56, 0.78, v)); /* -> hot pink      */
+  c = mix(c, vec3(0.949, 0.647, 0.494), smoothstep(0.76, 0.89, v)); /* -> peach         */
+  c = mix(c, vec3(0.988, 0.906, 0.796), smoothstep(0.87, 0.99, v)); /* -> warm cream    */
   return c;
 }
 
@@ -92,14 +92,14 @@ void main(){
 
   vec3 col = ramp(v);
 
-  /* soft breath of light where friends gather, creamy not hot */
-  col += vec3(0.10, 0.07, 0.05) * friends;
+  /* soft breath of light where friends gather, warm as an ember */
+  col += vec3(0.13, 0.06, 0.04) * friends;
 
   /* gentle vignette and a milk rinse — the UI floats on this */
   float vig = smoothstep(1.55, 0.4, length(uv));
   col *= 0.66 + 0.34*vig;
   col = col / (1.0 + col*0.22);
-  col = pow(col, vec3(0.96, 0.97, 1.0));
+  col = pow(col, vec3(0.92, 0.98, 1.08)); /* the whole field leans warm */
 
   outColor = vec4(col, 1.0);
 }`;
