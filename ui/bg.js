@@ -5,9 +5,12 @@
    twice-folded domain-warped fbm — no center, no subject, colors
    mixed all over — and five organic friends wander through it on
    separate paths, meeting and disappearing on their own slow life
-   cycles. Everything blends smooth as milk: no dither, no hard
-   bands, low contrast in the mids so the frosted glass floats on
-   top instead of fighting it.
+   cycles. And the whole sky is pressed like a sprite sheet — 180
+   rows of fat pixels, the flow snapped to ten swatches of the ramp
+   through a 4x4 Bayer sieve — flat color fields that stipple only
+   at the band seams, the way aseprite would shade it; contrast
+   stays low in the mids so the frosted glass floats on top instead
+   of fighting it.
    Separate file for CSP: no inline scripts. */
 
 const bgCanvas = document.getElementById('bg');
@@ -15,7 +18,7 @@ const gl = bgCanvas.getContext('webgl2', { antialias: false });
 
 if (gl) {
 
-const RENDER_H = 720; /* the field is soft — upscaling only adds cream */
+const RENDER_H = 180; /* the sprite-sheet look: few rows, fat pixels */
 
 const VERT = `#version 300 es
 void main() {
@@ -41,6 +44,13 @@ float fbm(vec2 p){
   float a = 0.5, s = 0.0;
   for (int i = 0; i < 4; i++){ s += a*vnoise(p); p = p*2.03 + 17.7; a *= 0.5; }
   return s;
+}
+
+/* the 4x4 ordered dither — the family grain, same as the planet wears */
+float bayer(vec2 fc){
+  int b[16] = int[16](0,8,2,10, 12,4,14,6, 3,11,1,9, 15,7,13,5);
+  ivec2 p = ivec2(mod(fc, 4.0));
+  return (float(b[p.y*4 + p.x]) + 0.5) / 16.0;
 }
 
 /* the wheel plays the blues: night indigo (never black), worn
@@ -91,14 +101,16 @@ void main(){
   v = v*v*(3.0 - 2.0*v); /* ease the turnarounds, kill any crease */
   v = mix(v, 0.42, 0.22); /* pull gently toward the calm middle */
 
+  /* dusk gathers at the edges: the vignette leans v down BEFORE the
+     press, so every screen pixel still lands on a palette color */
+  v -= (1.0 - smoothstep(1.55, 0.4, length(uv))) * 0.10;
+
+  /* the aseprite press: the flow snaps to ten swatches of the ramp,
+     one bayer cell per fat pixel — flat color fields, stippled only
+     where one band hands off to the next */
+  v = floor(clamp(v, 0.0, 1.0)*10.0 + bayer(gl_FragCoord.xy)) / 10.0;
+
   vec3 col = ramp(v);
-
-  /* soft breath of light where friends gather, warm as an ember */
-  col += vec3(0.13, 0.06, 0.04) * friends;
-
-  /* gentle vignette and a milk rinse — the UI floats on this */
-  float vig = smoothstep(1.55, 0.4, length(uv));
-  col *= 0.66 + 0.34*vig;
   col = col / (1.0 + col*0.22);
   col = pow(col, vec3(0.92, 0.98, 1.08)); /* the whole field leans warm */
 
