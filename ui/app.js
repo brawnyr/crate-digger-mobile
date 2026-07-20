@@ -697,6 +697,8 @@ function renderLibrary() {
   els.libEmpty.classList.add("hidden");
   els.libList.innerHTML = items.map((e) => {
     const sub = [e.creator, e.year].filter(Boolean).map(esc).join(" · ");
+    const crate = CRATES.find((c) => c.key === e.source);
+    const bin = crate ? '<span class="lib-b bin" title="Dug from">' + esc(crate.label) + '</span>' : "";
     const badge = e.downloaded
       ? '<span class="lib-b kept" title="Kept">💾 kept</span>'
       : '<span class="lib-b tossed" title="Tossed">🗑 tossed</span>';
@@ -704,7 +706,7 @@ function renderLibrary() {
       '<span class="lib-play" aria-hidden="true">▶</span>' +
       '<span class="lib-main"><span class="lib-title">' + esc(e.title || "(untitled)") + '</span>' +
       '<span class="lib-artist">' + sub + '</span></span>' +
-      '<span class="lib-badges">' + badge + '</span></li>';
+      '<span class="lib-badges">' + bin + badge + '</span></li>';
   }).join("");
 }
 // tap a logged record to re-cue and play it (your kept list = a playlist)

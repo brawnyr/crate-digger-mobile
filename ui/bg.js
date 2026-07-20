@@ -1,12 +1,13 @@
-/* The sky behind the glass — soft creamy psychedelia in the UI's own
-   colors, run hot: the wheel leans red and pink (wine deeps, magenta,
-   terracotta, hot pink, peach, warm cream) so the whole field glows
-   like the last hour of a sunset while the glass floats on top. The paint is twice-folded domain-warped fbm — no
-   center, no subject, colors mixed all over — and five organic friends
-   wander through it on separate paths, meeting and disappearing on
-   their own slow life cycles. Everything blends smooth as milk: no
-   dither, no hard bands, low contrast in the mids so the frosted
-   glass floats on top instead of fighting it.
+/* The sky behind the glass — the porch at dusk, and nobody's in a
+   hurry: the wheel plays the blues (night indigo — never black —
+   worn denim, tobacco brown, whiskey amber, lamplight cream) and
+   every clock in the paint runs at rocking-chair speed. The paint is
+   twice-folded domain-warped fbm — no center, no subject, colors
+   mixed all over — and five organic friends wander through it on
+   separate paths, meeting and disappearing on their own slow life
+   cycles. Everything blends smooth as milk: no dither, no hard
+   bands, low contrast in the mids so the frosted glass floats on
+   top instead of fighting it.
    Separate file for CSP: no inline scripts. */
 
 const bgCanvas = document.getElementById('bg');
@@ -42,21 +43,21 @@ float fbm(vec2 p){
   return s;
 }
 
-/* the UI's wheel run hot: wine deeps (never blue-black), magenta,
-   terracotta, hot pink, peach, warm cream */
+/* the wheel plays the blues: night indigo (never black), worn
+   denim, tobacco brown, whiskey amber, lamplight cream */
 vec3 ramp(float v){
   v = clamp(v, 0.0, 1.0);
-  vec3 c = mix(vec3(0.220, 0.055, 0.145), vec3(0.690, 0.129, 0.541), smoothstep(0.02, 0.40, v)); /* wine deep -> psychedelic magenta */
-  c = mix(c, vec3(0.769, 0.400, 0.290), smoothstep(0.36, 0.60, v)); /* -> terracotta    */
-  c = mix(c, vec3(1.000, 0.318, 0.549), smoothstep(0.56, 0.78, v)); /* -> hot pink      */
-  c = mix(c, vec3(0.949, 0.647, 0.494), smoothstep(0.76, 0.89, v)); /* -> peach         */
-  c = mix(c, vec3(0.988, 0.906, 0.796), smoothstep(0.87, 0.99, v)); /* -> warm cream    */
+  vec3 c = mix(vec3(0.051, 0.067, 0.129), vec3(0.208, 0.298, 0.451), smoothstep(0.02, 0.40, v)); /* night indigo -> worn denim */
+  c = mix(c, vec3(0.373, 0.294, 0.235), smoothstep(0.36, 0.60, v)); /* -> tobacco brown   */
+  c = mix(c, vec3(0.702, 0.443, 0.208), smoothstep(0.56, 0.78, v)); /* -> whiskey amber   */
+  c = mix(c, vec3(0.851, 0.624, 0.376), smoothstep(0.76, 0.89, v)); /* -> late gold       */
+  c = mix(c, vec3(0.957, 0.878, 0.741), smoothstep(0.87, 0.99, v)); /* -> lamplight cream */
   return c;
 }
 
 void main(){
   vec2 uv = (gl_FragCoord.xy - 0.5*uRes) / uRes.y;
-  float t = uTime * 0.04;
+  float t = uTime * 0.016; /* rocking-chair speed — the paint takes its time */
 
   /* the friends: soft presences wandering the paint on their own
      paths — they meet, they mingle, they fade out and are gone */
@@ -66,7 +67,7 @@ void main(){
     float ph = fi*2.399; /* golden-angle spread, no two paths alike */
     vec2 fp = vec2(sin(t*(1.3 + 0.4*fi) + ph)*0.85,
                    cos(t*(1.0 + 0.3*fi) + ph*1.7)*0.55);
-    float life = smoothstep(-0.35, 0.5, sin(uTime*(0.10 + 0.03*fi) + ph*3.1));
+    float life = smoothstep(-0.35, 0.5, sin(uTime*(0.045 + 0.012*fi) + ph*3.1));
     vec2 d = uv - fp;
     friends += exp(-dot(d, d)*6.0) * life;
   }
@@ -82,7 +83,7 @@ void main(){
   /* life: the field breathes through the palette on a slow clock,
      stirred by the warp, lifted where a friend is passing */
   float flow = paint*2.2 + w.x*1.2 - w.y*0.7 + friends*0.9 + t*0.35
-             + 0.18*sin(uv.x*3.0 + uv.y*2.0 + paint*4.0 + t*2.0); /* the wavy in the pink */
+             + 0.10*sin(uv.x*3.0 + uv.y*2.0 + paint*4.0 + t*2.0); /* a lazy sway, not a shimmy */
 
   /* ping-pong through the ramp — every color everywhere, no seam —
      softened toward the middle so the mids stay quiet under glass */

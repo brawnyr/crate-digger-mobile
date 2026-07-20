@@ -368,6 +368,9 @@ audio#player { display: none; }
 .lib-b.tossed {
   color: #f6c3b5; border-color: rgba(243, 160, 140, 0.5); background: rgba(243, 160, 140, 0.12);
 }
+.lib-b.bin {
+  color: #ccd6ec; border-color: rgba(165, 185, 230, 0.4); background: rgba(165, 185, 230, 0.1);
+}
 .lib-empty { color: var(--muted-dim); font-size: 0.84rem; padding: 10px 0; }
 .lib-empty.hidden { display: none; }
 

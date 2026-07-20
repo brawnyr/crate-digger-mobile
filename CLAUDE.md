@@ -16,7 +16,7 @@ webview serves `ui/` as `frontendDist`).
 ## Layout
 
 - `ui/app.js` — all app logic: IA search/pick, ASCII disc, player, crate log, verdicts.
-- `ui/bg.js` — WebGL soft paint marble in the UI's own palette (cream/latte/rust/rose/violet), wandering "friends", smooth blends (separate file for CSP: no inline scripts).
+- `ui/bg.js` — WebGL soft paint marble, porch-blues palette (night indigo/denim/tobacco/whiskey amber/lamplight cream), rocking-chair slow, wandering "friends", smooth blends (separate file for CSP: no inline scripts).
 - `src-tauri/src/main.rs` — only what a webview can't do: folder picker, crate log
   on disk, proxied IA requests, MP3 → 16-bit WAV (symphonia + hound).
 
