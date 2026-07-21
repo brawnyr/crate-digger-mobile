@@ -1,16 +1,12 @@
-/* The sky behind the glass — not pressed noise anymore: a DRAWN
-   sunset, sprited the way terraria or animal well would do it.
-   Everything is computed on the fat-pixel grid itself (180 rows —
-   animal well's own vertical resolution): ten hard swatches of
-   pink-and-blue stacked bottom-glow to twilight-top, every 2-px
-   column a wax run so the dark above drips long tongues down into
-   the peach; a fat sun hanging low whose halo the band-snap presses
-   into concentric dithered rings all by itself; three drifts of
-   chunky cumulus sliding by whole pixels, violet bodies with
-   bellies lit coral from below; slow-blinking stars up in the
-   indigo; and four burning motes wandering the well on their own
-   life cycles. Contrast stays calm in the mids so the glass floats.
-   Separate file for CSP: no inline scripts. */
+/* The sky behind the glass — one piece of cool math now: a single
+   fbm field folded through itself twice (iq's domain warp — the
+   whole weather in three lines), pressed through the family bayer
+   into ten hard swatches of the pink-and-blue wheel on the
+   fat-pixel grid itself (180 rows — animal well's own vertical
+   resolution). No sun, no clouds, no stars — just the fold, melting
+   slow; indigo pools at the top, peach at the floor, and the mids
+   stay calm so the glass floats. Twin of dig.html's sky — change
+   one, change both. Separate file for CSP: no inline scripts. */
 
 const bgCanvas = document.getElementById('bg');
 const gl = bgCanvas.getContext('webgl2', { antialias: false });
@@ -64,79 +60,23 @@ vec3 ramp(float v){
   return c;
 }
 
-/* one drift of cumulus: chunked cells so the clouds slide by whole
-   pixels, a belt so each layer keeps its own altitude */
-float cloudField(vec2 px, float fr, float t, float H){
-  float belt = exp(-pow((px.y / H - (0.42 + fr*0.19))*6.5, 2.0));
-  vec2 cp = floor(vec2(px.x + t*(1.2 + fr*0.9), px.y + fr*61.0) / 2.0);
-  return fbm(cp * (0.030 + fr*0.008)) * belt;
-}
-
 void main(){
   vec2 px = floor(gl_FragCoord.xy);  /* the fat pixel IS the unit */
-  float W = uRes.x, H = uRes.y;
-  float y01 = px.y / H;
-  float t = uTime;
+  float t = uTime*0.05;
 
-  /* the melt: every two-pixel column of sky is a wax run — a broad
-     lazy wobble plus the occasional long tongue where the twilight
-     above drips down into the glow below */
-  float c2 = floor(px.x / 2.0);
-  float wob    = vnoise(vec2(c2*0.09,        t*0.05)) - 0.5;
-  float tongue = pow(vnoise(vec2(c2*0.47 + 40.0, t*0.03)), 5.0);
-  float v = 1.0 - (y01 + wob*0.07 + tongue*0.50)*1.12;
+  /* the fold: warp the field by the field by the field */
+  vec2 p = px/uRes.y*2.2;
+  vec2 q = vec2(fbm(p + t),                         fbm(p + vec2(7.3, 1.2) - t*0.7));
+  vec2 r = vec2(fbm(p + 2.6*q + vec2(11.0, 3.0) + t*0.4),
+                fbm(p + 2.6*q + vec2(4.7, 9.2)  - t*0.3));
+  float v = fbm(p + 2.4*r);
 
-  /* the sun: a fat disc hanging low in the middle — the band snap
-     below presses its halo into concentric stippled rings for free */
-  float d = length((px - vec2(W*0.5, H*0.16)) / H);
-  v = max(v, 0.97 - d*1.5);
+  /* dusk bias: the glow pools at the floor, the dark keeps the top */
+  v = v*1.25 + (1.0 - px.y/uRes.y)*0.25 - 0.12;
 
   /* the press: ten hard swatches through the family bayer sieve */
   float vq = floor(clamp(v, 0.0, 1.0)*10.0 + bayer(px)) / 10.0;
-  vec3 col = ramp(vq);
-
-  /* clouds: three slow drifts of chunky cumulus — violet bodies, a
-     darker heart, bellies lit coral by the sun underneath */
-  float cloudHit = 0.0;
-  for (int r = 0; r < 3; r++){
-    float fr = float(r);
-    float m = cloudField(px, fr, t, H);
-    if (m > 0.37){
-      float below = cloudField(px - vec2(0.0, 3.0), fr, t, H);
-      float lit = step(below, 0.37);        /* open sky below -> sunlit belly */
-      col = mix(ramp(0.30), ramp(0.80), lit);
-      col = mix(col, ramp(0.18), step(0.46, m)*(1.0 - lit));
-      cloudHit = 1.0;
-    }
-  }
-
-  /* stars: the dark top of the sky keeps a scatter of slow blinkers */
-  if (cloudHit < 0.5 && vq < 0.25 && y01 > 0.55){
-    float s = hash21(px);
-    if (s > 0.994){
-      float tw = 0.5 + 0.5*sin(t*(0.6 + s*2.0) + s*90.0);
-      col = mix(col, vec3(1.0, 0.90, 0.78), tw*0.85);
-    }
-  }
-
-  /* the well-lit: four motes wandering on their own paths, each one
-     burning pixel with a soft cross of glow, fading in and out on
-     slow life cycles */
-  for (int i = 0; i < 4; i++){
-    float fi = float(i), ph = fi*2.399; /* golden-angle spread */
-    vec2 fp = floor(vec2(W*(0.5 + 0.40*sin(t*0.043 + ph)*sin(t*0.021 + ph*1.7)),
-                         H*(0.48 + 0.30*sin(t*0.031 + ph*2.3))));
-    float life = smoothstep(0.15, 0.6, sin(t*0.05 + ph*3.1));
-    float md = abs(px.x - fp.x) + abs(px.y - fp.y);
-    if      (md < 0.5) col = mix(col, vec3(1.00, 0.93, 0.80), life);
-    else if (md < 1.5) col = mix(col, vec3(1.00, 0.72, 0.62), life*0.5);
-    else if (md < 2.5) col = mix(col, vec3(0.95, 0.50, 0.55), life*0.18);
-  }
-
-  col = col / (1.0 + col*0.22);
-  col = pow(col, vec3(0.92, 0.98, 1.08)); /* the whole field leans warm */
-
-  outColor = vec4(col, 1.0);
+  outColor = vec4(ramp(vq), 1.0);
 }`;
 
 function compile(type, src) {

@@ -16,7 +16,7 @@ webview serves `ui/` as `frontendDist`).
 ## Layout
 
 - `ui/app.js` — all app logic: IA search/pick, ASCII disc, player, crate log, verdicts.
-- `ui/bg.js` — WebGL drawn-sunset sprite sky, computed on the fat-pixel grid itself (180 rows): warm-sunset palette (twilight indigo/periwinkle/lavender violet/hot pink/melted coral/peach glow) in ten hard Bayer-stippled bands, per-column wax-tongue melt, low fat sun with ringed halo, three drifts of chunky cumulus with coral-lit bellies, blinking stars, four wandering glow motes (separate file for CSP: no inline scripts).
+- `ui/bg.js` — WebGL domain-warp sky on the fat-pixel grid itself (180 rows): one fbm field folded through itself twice (iq's warp), Bayer-pressed into ten hard swatches of the warm-sunset palette (twilight indigo/periwinkle/lavender violet/hot pink/melted coral/peach glow), dusk-biased so indigo keeps the top and peach the floor. Twin of myhomepage's `dig.html` sky — change one, change both (separate file for CSP: no inline scripts).
 - `src-tauri/src/main.rs` — only what a webview can't do: folder picker, crate log
   on disk, proxied IA requests, MP3 → 16-bit WAV (symphonia + hound).
 
