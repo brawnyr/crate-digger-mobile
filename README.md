@@ -1,5 +1,8 @@
 # Crate Digger
 
+> **Retired 2026-07-21.** Superseded by `myhomepage/dig.html` — THE Crate
+> Digger on braknee.com. This repo stays as history.
+
 Tauri desktop app for digging Internet Archive records and keeping samples as
 WAVs. Pulls warm LP-era soul / blues / funk / soul-jazz LPs.
 

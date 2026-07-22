@@ -1,5 +1,8 @@
 # Crate Digger — dev notes
 
+> **Retired 2026-07-21.** Superseded by `myhomepage/dig.html` — THE Crate
+> Digger on braknee.com. This repo stays as history; nothing here ships.
+
 Native Tauri v2 Windows app for digging Internet Archive records and keeping
 samples as WAVs. See README.md for what it does.
 
